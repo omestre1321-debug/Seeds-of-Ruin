@@ -1,0 +1,10 @@
+{
+  "name": "ashen-reach-the-deep",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A procedural browser roguelike built with Canvas and vanilla ES modules.",
+  "scripts": {
+    "test": "node --test"
+  }
+}

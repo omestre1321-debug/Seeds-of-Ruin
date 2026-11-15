@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#111615" />
+    <meta name="description" content="ASHEN REACH: descend into a deterministic procedural roguelike." />
+    <title>Ashen Reach: The Deep</title>
+    <link rel="stylesheet" href="./css/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="masthead">
+        <button class="brand-button" id="brand-home" aria-label="Return to title">
+          <span class="eyebrow">A PROCEDURAL ROGUELIKE</span>
+          <span class="brand-title">ASHEN <b>REACH</b></span>
+        </button>
+        <p class="edition">THE DEEP <i aria-hidden="true"></i> NO ASSETS · NO MERCY</p>
+      </header>
+
+      <section id="menu-screen" class="screen" aria-labelledby="menu-title">
+        <div class="title-card">
+          <div class="title-card__copy">
+            <p class="eyebrow">BENEATH THE CINDER CITY</p>
+            <h1 id="menu-title">THE VAULT<br /><span>REMEMBERS.</span></h1>
+            <p class="intro">Four floors. One life. Every stone placed by a seed, every choice paid in blood or gold.</p>
+          </div>
+          <div class="title-seal" aria-hidden="true"><span>✦</span><i></i><b></b></div>
+        </div>
+
+        <div class="menu-grid">
+          <form id="start-form" class="card start-card">
+            <div class="card-heading"><div><p class="eyebrow">PREPARE YOUR DESCENT</p><h2>Choose a seed</h2></div><span class="card-index">01</span></div>
+            <label class="field-label" for="seed-input">WORLD SEED <span>same seed · same vault</span></label>
+            <div class="seed-row"><input id="seed-input" name="seed" value="ASH-001" maxlength="32" autocomplete="off" spellcheck="false" /><button id="random-seed" class="icon-button" type="button" aria-label="Random seed">↻</button></div>
+            <button id="daily-button" class="secondary-button" type="button">✦ &nbsp; TAKE TODAY'S CHALLENGE</button>
+            <label class="field-label mutator-label" for="mutator-select">VAULT MUTATOR</label>
+            <select id="mutator-select" aria-label="Choose a mutator"></select>
+            <button class="primary-button" type="submit">DESCEND &nbsp; ↓</button>
+            <p class="small-note">Permadeath is real. Progress between runs is not.</p>
+          </form>
+
+          <aside class="card record-card">
+            <div class="card-heading"><div><p class="eyebrow">YOUR LEGACY</p><h2>Delver's record</h2></div><span class="card-index">02</span></div>
+            <div class="record-stats">
+              <div><span>BEST SCORE</span><strong id="menu-best-score">0</strong></div>
+              <div><span>DEEPEST FLOOR</span><strong id="menu-best-floor">—</strong></div>
+              <div><span>ESCAPES</span><strong id="menu-wins">0</strong></div>
+              <div><span>DESCENTS</span><strong id="menu-runs">0</strong></div>
+            </div>
+            <p class="record-flavor">The walls keep every name. The city only remembers the ones that return.</p>
+            <div class="mutator-legend"><span class="legend-dot"></span><span>Unlock mutators by surviving deeper.</span></div>
+          </aside>
+        </div>
+        <p class="footer-note">ASHEN REACH <span>·</span> BUILT FROM SEEDS, STONE &amp; SOUND</p>
+      </section>
+
+      <section id="game-screen" class="screen is-hidden" aria-label="Dungeon run">
+        <div class="run-header card">
+          <div><p class="eyebrow">CURRENT DESCENT</p><h2 id="floor-title">Cinder Vault · Floor I</h2></div>
+          <div class="run-seed"><span>SEED</span><strong id="run-seed">ASH-001</strong></div>
+          <div class="run-score"><span>SCORE</span><strong id="run-score">0</strong></div>
+          <button id="sound-button" class="quiet-button" type="button" aria-pressed="true">SOUND ON</button>
+          <button id="abandon-button" class="quiet-button" type="button">ABANDON</button>
+        </div>
+
+        <div class="game-layout">
+          <section class="game-board card" aria-label="Dungeon map and movement">
+            <div class="board-topline"><span id="floor-subtitle">THE CINDER VAULT</span><span id="turn-label">TURN 0</span></div>
+            <div class="game-canvas-frame"><canvas id="game-canvas" aria-label="Dungeon map"></canvas><div id="damage-layer" class="damage-layer" aria-hidden="true"></div></div>
+            <div class="board-bottomline"><span id="location-label">The stairwell exhales heat.</span><span id="visibility-label">FOG OF WAR</span></div>
+            <div class="action-row">
+              <button id="interact-button" class="secondary-button" type="button">INTERACT <kbd>E</kbd></button>
+              <button id="wait-button" class="secondary-button" type="button">WAIT <kbd>SPACE</kbd></button>
+              <button id="pack-button" class="secondary-button" type="button">PACK <kbd>I</kbd></button>
+              <button id="stairs-button" class="primary-button small-primary" type="button">DESCEND <kbd>↵</kbd></button>
+            </div>
+            <div class="touch-controls" aria-label="Touch movement controls">
+              <button data-move="0,-1" aria-label="Move north">▲</button>
+              <button data-move="-1,0" aria-label="Move west">◀</button>
+              <button data-move="0,1" aria-label="Move south">▼</button>
+              <button data-move="1,0" aria-label="Move east">▶</button>
+            </div>
+          </section>
+
+          <aside class="side-column">
+            <section class="card status-card">
+              <div class="card-heading compact-heading"><div><p class="eyebrow">DELVER</p><h2>The Last Light</h2></div><span id="level-label" class="level-badge">LV 1</span></div>
+              <div class="health-row"><span>VITALITY</span><strong id="hp-label">32 / 32</strong></div>
+              <div class="meter"><div id="hp-meter" class="meter__fill hp-fill"></div></div>
+              <div class="resource-row"><span id="xp-label">0 / 18 XP</span><strong id="gold-label">◈ 8</strong></div>
+              <div class="stat-line"><span>ATK</span><b id="attack-label">5</b><span>DEF</span><b id="defense-label">0</b><span>CRIT</span><b id="crit-label">6%</b></div>
+            </section>
+
+            <section class="card map-card">
+              <div class="card-heading compact-heading"><div><p class="eyebrow">WAYFINDER</p><h2>Charted stone</h2></div></div>
+              <canvas id="minimap" aria-label="Explored dungeon minimap"></canvas>
+              <div class="map-legend"><span><i class="legend-player"></i>YOU</span><span><i class="legend-enemy"></i>THREAT</span><span><i class="legend-stair"></i>STAIRS</span></div>
+            </section>
+
+            <section class="card log-card">
+              <div class="card-heading compact-heading"><div><p class="eyebrow">FIELD NOTES</p><h2>Combat log</h2></div><span id="enemy-count" class="count-pill">0 THREATS</span></div>
+              <ol id="combat-log" aria-live="polite" aria-relevant="additions"></ol>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <section id="end-screen" class="screen is-hidden" aria-live="polite">
+        <div class="end-card card">
+          <p id="end-eyebrow" class="eyebrow">THE VAULT CLOSES</p>
+          <h1 id="end-title">THE ASHES<br /><span>KEEP YOU.</span></h1>
+          <p id="end-copy" class="intro"></p>
+          <div class="end-summary"><div><span>FINAL SCORE</span><strong id="end-score">0</strong></div><div><span>DEEPEST FLOOR</span><strong id="end-floor">1</strong></div><div><span>FOES FELLED</span><strong id="end-kills">0</strong></div></div>
+          <p id="record-message" class="record-message"></p>
+          <button id="again-button" class="primary-button" type="button">RETURN TO THE CITY</button>
+        </div>
+      </section>
+
+      <div id="modal-root" class="modal-root is-hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-card card"><div class="card-heading"><div><p id="modal-eyebrow" class="eyebrow">THE VAULT OFFERS</p><h2 id="modal-title">Inventory</h2></div><button id="modal-close" class="icon-button" type="button" aria-label="Close">×</button></div><div id="modal-content" class="modal-content"></div></div>
+      </div>
+
+      <p class="footer-note site-footer">ASHEN REACH <span>·</span> THE DEEP DOES NOT FORGIVE</p>
+    </main>
+    <script type="module" src="./js/main.js"></script>
+  </body>
+</html>
