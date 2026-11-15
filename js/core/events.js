@@ -43,6 +43,7 @@ export function resolveEventChoice(player, event, choiceId) {
       return { ok: true, text: "The shrine warms your hands. You recover 12 HP." };
     case "shrine:take-flame":
       player.baseAttack += 2;
+      player.baseMaxHp = Math.max(8, player.baseMaxHp - 4);
       player.maxHp = Math.max(8, player.maxHp - 4);
       player.hp = Math.min(player.hp, player.maxHp);
       return { ok: true, text: "The flame settles in your blade. Your vitality thins." };

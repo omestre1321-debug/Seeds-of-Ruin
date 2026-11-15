@@ -10,6 +10,8 @@ export function combatStats(player) {
 /** Resolve one deterministic attack. Mutates only the defender's HP and returns a log-ready record. */
 export function resolveAttack(attacker, defender, rng, options = {}) {
   if (!attacker || !defender || defender.hp <= 0) return { hit: false, reason: "invalid-target", damage: 0, critical: false };
+  const evasionChance=Math.max(0,Math.min(0.35,Number(defender.speed??0)*0.08));
+  if(evasionChance>0&&rng.chance(evasionChance))return {hit:false,evaded:true,reason:"evaded",damage:0,critical:false};
   const critChance = Math.max(0, Math.min(1, options.crit ?? attacker.crit ?? 0));
   const critical = rng.chance(critChance);
   const variation = rng.int(0, 2);

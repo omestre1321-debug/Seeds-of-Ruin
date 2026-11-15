@@ -5,16 +5,18 @@ import { generateFloor } from "./map/floor.js";
 import { computeFov, mergeExplored } from "./fov.js";
 import { TILE } from "./map/tiles.js";
 import { Rng } from "./rng.js";
-import { addToInventory, consumeTonic, createLoot, equipItem, equipmentBonuses } from "./loot.js";
+import { createLoot } from "./loot.js";
+import { addToInventory, consumeTonic, INVENTORY_CAPACITY } from "../items/inventory.js";
+import { collectDropsAt, createEnemyItemDrop, discardInventoryItem, makeItemDrop } from "../items/drops.js";
+import { equipItem, equipmentBonuses, unequipItem } from "../items/equipment.js";
 import { getMutator } from "./mutators.js";
 import { sanitizeProfile } from "./progression.js";
 
 const MAX_LOG = 90;
-const INVENTORY_CAPACITY = 12;
 const FOV_RADIUS = 8;
 
 function updateVisibility(state, resetExploration = false) {
-  state.visible = computeFov(state.map, state.player, FOV_RADIUS);
+  state.visible = computeFov(state.map, state.player, Math.max(4, Math.min(14, FOV_RADIUS + (state.player.vision ?? 0))));
   state.explored = resetExploration || !state.explored || state.explored.length !== state.visible.length
     ? new Uint8Array(state.visible)
     : mergeExplored(state.explored, state.visible);
@@ -27,9 +29,16 @@ function pushLog(state, text, type = "info") {
 
 function recalculatePlayer(player) {
   player.equipmentBonuses = equipmentBonuses(player);
-  player.attack = player.baseAttack + player.mutatorAttack + player.equipmentBonuses.attack;
-  player.defense = player.baseDefense + player.mutatorDefense + player.equipmentBonuses.defense;
-  player.crit = Math.min(0.75, player.baseCrit + player.equipmentBonuses.crit);
+  player.maxHp=Math.max(1,Math.floor(player.baseMaxHp*(player.maxHpMultiplier??1))+player.equipmentBonuses.maxHp);
+  player.hp=Math.min(player.hp,player.maxHp);
+  player.attack=player.baseAttack+player.mutatorAttack+player.equipmentBonuses.attack;
+  player.defense=player.baseDefense+player.mutatorDefense+player.equipmentBonuses.defense;
+  player.crit=Math.min(0.75,player.baseCrit+player.equipmentBonuses.crit);
+  player.speed=player.baseSpeed+player.equipmentBonuses.speed;
+  player.vision=Math.max(0,player.equipmentBonuses.vision);
+  player.lifeSteal=player.equipmentBonuses.lifeSteal;
+  player.thorns=player.equipmentBonuses.thorns;
+  player.reach=player.equipmentBonuses.reach;
 }
 
 function starterItem() {
@@ -42,10 +51,8 @@ function starterItem() {
     color: "#aeb8ad",
     floor: 1,
     value: 0,
-    attack: 2,
-    defense: 0,
-    crit: 0,
-    heal: 0,
+    attack: 2, defense: 0, maxHp: 0, crit: 0, speed: 0, vision: 0, lifeSteal: 0, thorns: 0, reach: 0,
+    quantity: 1,
   };
 }
 
@@ -65,16 +72,18 @@ export function createGame(seed, profileValue = {}, options = {}) {
     baseAttack: 4,
     baseDefense: 1,
     baseCrit: 0.06,
+    baseSpeed: 0,
     mutatorAttack: mutator.attackBonus ?? 0,
     mutatorDefense: mutator.defenseBonus ?? 0,
+    maxHpMultiplier: mutator.maxHpMultiplier ?? 1,
     attack: 0,
     defense: 0,
     crit: 0,
     level: 1,
     xp: 0,
     gold: mutator.startingGold ?? 8,
-    inventory: [starterItem(), { id: "starter-tonic", name: "Common Warmth Tonic", type: "tonic", slot: "consumable", rarity: "common", color: "#aeb8ad", floor: 1, value: 0, attack: 0, defense: 0, crit: 0, heal: 12 }],
-    equipment: { weapon: "starter-ash-knife", armor: null, charm: null },
+    inventory: [{ id: "starter-tonic", name: "Common Warmth Tonic", type: "tonic", slot: "consumable", rarity: "common", color: "#b9c2b8", floor: 1, value: 0, stackable: true, quantity: 1, attack: 0, defense: 0, maxHp: 0, crit: 0, speed: 0, vision: 0, lifeSteal: 0, thorns: 0, reach: 0, heal: 12 }],
+    equipment: { weapon: starterItem(), armor: null, helmet: null, boots: null, ring1: null, ring2: null, amulet: null },
     bonusScore: 0,
   };
   recalculatePlayer(player);
@@ -118,11 +127,13 @@ function featureAt(state, x, y) {
 }
 
 function playerCombatSnapshot(player) {
-  return { name: "You", attack: player.attack, defense: player.defense, crit: player.crit };
+  return { name: "You", attack: player.attack, defense: player.defense, crit: player.crit, speed: player.speed };
 }
 
-function addDrop(state, item, x, y) {
-  state.drops.push({ id: `ground-${item.id}`, item, x, y, taken: false });
+function collectAtPlayer(state) {
+  const result=collectDropsAt(state.drops,state.player,state.player.x,state.player.y);
+  for(const message of result.messages) pushLog(state,message,message.startsWith("Inventário cheio")?"warning":"loot");
+  return result;
 }
 
 function gainExperience(state, amount) {
@@ -133,10 +144,9 @@ function gainExperience(state, amount) {
     player.xp -= threshold;
     player.level += 1;
     player.baseMaxHp += 3;
-    player.maxHp += 3;
-    player.hp = Math.min(player.maxHp, player.hp + 8);
     player.baseAttack += 1;
     recalculatePlayer(player);
+    player.hp = Math.min(player.maxHp, player.hp + 8);
     pushLog(state, `Level ${player.level}! Your max HP and attack increase.`, "good");
     threshold = player.level * 18;
   }
@@ -148,17 +158,14 @@ function defeatEnemy(state, enemy) {
   state.player.gold += enemy.gold;
   gainExperience(state, enemy.xp);
   pushLog(state, `${enemy.name} falls. +${enemy.gold} gold, +${enemy.xp} XP.`, "good");
-  const forcedRarity = enemy.type === "vault-warden" ? "rare" : undefined;
-  if (forcedRarity || state.rng.chance(0.32)) {
-    const item = createLoot(state.rng, state.floor, forcedRarity ? { rarity: forcedRarity } : {});
-    if (forcedRarity) {
-      const added = addToInventory(state.player, item, INVENTORY_CAPACITY);
-      if (!added.ok) state.player.gold += item.value;
-      pushLog(state, added.ok ? `The Warden yields ${item.name}.` : `The Warden's relic is sold for ${item.value} gold; your pack is full.`, "loot");
-    } else {
-      addDrop(state, item, enemy.x, enemy.y);
-      pushLog(state, `${item.name} lands among the ashes.`, "loot");
-    }
+  const item = createEnemyItemDrop(enemy, state.rng, createLoot, state.floor);
+  if (item && enemy.type === "vault-warden") {
+    const added = addToInventory(state.player, item, INVENTORY_CAPACITY);
+    if (!added.ok) state.player.gold += item.value;
+    pushLog(state, added.ok ? `The Warden yields ${item.name}.` : `The Warden's relic is sold for ${item.value} gold; your pack is full.`, "loot");
+  } else if (item) {
+    state.drops.push(makeItemDrop(item, enemy.x, enemy.y, "enemy"));
+    pushLog(state, `${item.name} falls to the floor.`, "loot");
   }
   if (enemy.type === "vault-warden") {
     state.bossDefeated = true;
@@ -169,14 +176,18 @@ function defeatEnemy(state, enemy) {
 
 function playerAttack(state, enemy) {
   const result = resolveAttack(playerCombatSnapshot(state.player), enemy, state.rng);
+  if(result.evaded){pushLog(state,`${enemy.name} evades your strike.`,"warning");return result;}
   pushLog(state, `${result.critical ? "Critical! " : ""}You strike ${enemy.name} for ${result.damage}.`, result.critical ? "critical" : "combat");
+  if(state.player.lifeSteal>0&&result.damage>0){const healed=Math.min(state.player.maxHp-state.player.hp,Math.floor(result.damage*state.player.lifeSteal));if(healed>0){state.player.hp+=healed;pushLog(state,`Life steal restores ${healed} HP.`,"good");}}
   if (result.defeated) defeatEnemy(state, enemy);
   return result;
 }
 
 function enemyAttack(state, enemy) {
   const result = resolveAttack(enemy, state.player, state.rng);
+  if(result.evaded){pushLog(state,`You evade ${enemy.name}'s strike.`,"good");return;}
   pushLog(state, `${result.critical ? "Critical! " : ""}${enemy.name} hits you for ${result.damage}.`, "danger");
+  if(state.player.thorns>0&&enemy.alive){enemy.hp=Math.max(0,enemy.hp-state.player.thorns);pushLog(state,`Thorns deal ${state.player.thorns} damage to ${enemy.name}.`,"combat");if(enemy.hp===0)defeatEnemy(state,enemy);}
   if (state.player.hp <= 0) {
     setTerminalStatus(state, "gameover");
     pushLog(state, "You fall. The vault keeps what it was owed.", "death");
@@ -223,8 +234,9 @@ function interact(state) {
       feature.used = true;
       state.player.gold += feature.gold;
       const item = createLoot(state.rng, state.floor, feature.guaranteedTonic ? { type: "tonic" } : {});
-      if (!addToInventory(state.player, item, INVENTORY_CAPACITY).ok) addDrop(state, item, state.player.x, state.player.y);
-      pushLog(state, `The cache yields ${feature.gold} gold and ${item.name}.`, "loot");
+      state.drops.push(makeItemDrop(item,state.player.x,state.player.y,"chest"));
+      pushLog(state, `The cache yields ${feature.gold} gold.`, "loot");
+      collectAtPlayer(state);
       return { ok: true, consumedTurn: true };
     }
   }
@@ -237,14 +249,9 @@ function interact(state) {
     return { ok: true, consumedTurn: false };
   }
 
-  const drop = state.drops.find((entry) => !entry.taken && entry.x === state.player.x && entry.y === state.player.y);
-  if (drop) {
-    const added = addToInventory(state.player, drop.item, INVENTORY_CAPACITY);
-    if (!added.ok) return { ok: false, consumedTurn: false, reason: "Your pack is full." };
-    drop.taken = true;
-    pushLog(state, `You pocket ${drop.item.name}.`, "loot");
-    return { ok: true, consumedTurn: true };
-  }
+  const pickup=collectAtPlayer(state);
+  if(pickup.collected.length>0)return {ok:true,consumedTurn:false};
+  if(state.drops.some((drop)=>!drop.collected&&drop.x===state.player.x&&drop.y===state.player.y))return {ok:false,consumedTurn:false,reason:"Inventory full; the item remains underfoot."};
   return { ok: false, consumedTurn: false, reason: "Nothing here answers." };
 }
 
@@ -299,10 +306,16 @@ export function performAction(state, intent) {
       return { ok: true, consumedTurn: true };
     }
     if (intent.type === "equip") {
-      if (!equipItem(state.player, intent.itemId)) return { ok: false, consumedTurn: false, reason: "item-cannot-be-equipped" };
+      const result=equipItem(state.player,intent.itemId,intent.slot,INVENTORY_CAPACITY);
+      if (!result.ok) return {ok:false,consumedTurn:false,reason:result.reason};
       recalculatePlayer(state.player);
-      pushLog(state, `Equipped ${state.player.inventory.find((item) => item.id === intent.itemId).name}.`, "good");
-      return { ok: true, consumedTurn: false };
+      pushLog(state,`Equipped ${result.equipped.name} in ${result.slot}.`,"good");
+      return {ok:true,consumedTurn:false};
+    }
+    if(intent.type==="unequip"){
+      const result=unequipItem(state.player,intent.slot,INVENTORY_CAPACITY);
+      if(!result.ok)return {ok:false,consumedTurn:false,reason:result.reason};
+      recalculatePlayer(state.player);pushLog(state,`Unequipped ${result.item.name}.`,"good");return {ok:true,consumedTurn:false};
     }
     return { ok: false, consumedTurn: false, reason: "close-the-current-panel-first" };
   }
@@ -323,13 +336,14 @@ export function performAction(state, intent) {
       } else {
         state.player.x = x;
         state.player.y = y;
+        collectAtPlayer(state);
         result = { ok: true, consumedTurn: true };
       }
       break;
     }
     case "attack": {
       const enemy = state.enemies.find((entry) => entry.alive && entry.id === intent.targetId);
-      if (!enemy || Math.abs(enemy.x - state.player.x) + Math.abs(enemy.y - state.player.y) !== 1) return { ok: false, consumedTurn: false, reason: "target-not-adjacent" };
+      if (!enemy || Math.abs(enemy.x - state.player.x) + Math.abs(enemy.y - state.player.y) > 1+Math.floor(state.player.reach)) return { ok: false, consumedTurn: false, reason: "target-out-of-reach" };
       playerAttack(state, enemy);
       result = { ok: true, consumedTurn: true };
       break;
@@ -346,12 +360,21 @@ export function performAction(state, intent) {
       if (state.floor === state.maxFloors) return { ok: false, consumedTurn: false, reason: "defeat-the-warden-first" };
       descend(state);
       return { ok: true, consumedTurn: false };
-    case "equip":
-      if (!equipItem(state.player, intent.itemId)) return { ok: false, consumedTurn: false, reason: "item-cannot-be-equipped" };
-      recalculatePlayer(state.player);
-      pushLog(state, `Equipped ${state.player.inventory.find((item) => item.id === intent.itemId).name}.`, "good");
-      result = { ok: true, consumedTurn: false };
-      break;
+    case "equip": {
+      const equipped=equipItem(state.player,intent.itemId,intent.slot,INVENTORY_CAPACITY);
+      if(!equipped.ok)return {ok:false,consumedTurn:false,reason:equipped.reason};
+      recalculatePlayer(state.player);pushLog(state,`Equipped ${equipped.equipped.name} in ${equipped.slot}.`,"good");result={ok:true,consumedTurn:false};break;
+    }
+    case "unequip": {
+      const removed=unequipItem(state.player,intent.slot,INVENTORY_CAPACITY);
+      if(!removed.ok)return {ok:false,consumedTurn:false,reason:removed.reason};
+      recalculatePlayer(state.player);pushLog(state,`Unequipped ${removed.item.name}.`,"good");result={ok:true,consumedTurn:false};break;
+    }
+    case "discard": {
+      const dropped=discardInventoryItem(state.player,intent.itemId,state.player.x,state.player.y,state.drops);
+      if(!dropped.ok)return {ok:false,consumedTurn:false,reason:dropped.reason};
+      pushLog(state,`You dropped ${dropped.item.name} on the floor.`,"warning");result={ok:true,consumedTurn:true};break;
+    }
     case "use": return useItem(state, intent.itemId);
     default: return { ok: false, consumedTurn: false, reason: "unknown-action" };
   }
