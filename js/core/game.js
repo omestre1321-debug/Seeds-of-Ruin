@@ -1,6 +1,7 @@
 import { resolveAttack, scoreRun } from "./combat.js";
 import { chooseEnemyAction } from "./enemies.js";
 import { createEvent, resolveEventChoice } from "./events.js";
+import { sanitizeCharacter } from "./character.js";
 import { generateFloor } from "./map/floor.js";
 import { computeFov, mergeExplored } from "./fov.js";
 import { TILE } from "./map/tiles.js";
@@ -35,44 +36,40 @@ function recalculatePlayer(player) {
   player.defense=player.baseDefense+player.mutatorDefense+player.equipmentBonuses.defense;
   player.crit=Math.min(0.75,player.baseCrit+player.equipmentBonuses.crit);
   player.speed=player.baseSpeed+player.equipmentBonuses.speed;
-  player.vision=Math.max(0,player.equipmentBonuses.vision);
-  player.lifeSteal=player.equipmentBonuses.lifeSteal;
-  player.thorns=player.equipmentBonuses.thorns;
-  player.reach=player.equipmentBonuses.reach;
-}
-
-function starterItem() {
-  return {
-    id: "starter-ash-knife",
-    name: "Common Ash Knife",
-    type: "weapon",
-    slot: "weapon",
-    rarity: "common",
-    color: "#aeb8ad",
-    floor: 1,
-    value: 0,
-    attack: 2, defense: 0, maxHp: 0, crit: 0, speed: 0, vision: 0, lifeSteal: 0, thorns: 0, reach: 0,
-    quantity: 1,
-  };
+  player.vision=Math.max(0,player.baseVision+player.equipmentBonuses.vision);
+  player.lifeSteal=player.baseLifeSteal+player.equipmentBonuses.lifeSteal;
+  player.thorns=player.baseThorns+player.equipmentBonuses.thorns;
+  player.reach=player.baseReach+player.equipmentBonuses.reach;
 }
 
 export function createGame(seed, profileValue = {}, options = {}) {
   const profile = sanitizeProfile(profileValue);
   const maxFloors = Math.max(2, Math.min(12, Math.floor(options.maxFloors ?? 4)));
   const mutator = getMutator(options.mutator ?? profile.selectedMutator);
-  const baseMaxHp = 38;
-  const maxHp = Math.max(12, Math.floor(baseMaxHp * (mutator.maxHpMultiplier ?? 1)));
+  const character=sanitizeCharacter(options.character??profile.defaultCharacter);
+  const baseMaxHp=character.stats.maxHp;
+  const maxHp=Math.max(12,Math.floor(baseMaxHp*(mutator.maxHpMultiplier??1)));
   const player = {
-    name: "The Delver",
+    name: character.name,
+    character,
+    classId:character.classId,
+    passiveId:character.passiveId,
+    passive:character.passive,
+    passiveUsedFloor:null,
     x: 0,
     y: 0,
+    facing:"right",
     hp: maxHp,
     maxHp,
     baseMaxHp,
-    baseAttack: 4,
-    baseDefense: 1,
-    baseCrit: 0.06,
-    baseSpeed: 0,
+    baseAttack: character.stats.attack,
+    baseDefense: character.stats.defense,
+    baseCrit: character.stats.crit,
+    baseSpeed: character.stats.speed,
+    baseVision: character.stats.vision,
+    baseLifeSteal: character.stats.lifeSteal,
+    baseThorns: character.stats.thorns,
+    baseReach: character.stats.reach,
     mutatorAttack: mutator.attackBonus ?? 0,
     mutatorDefense: mutator.defenseBonus ?? 0,
     maxHpMultiplier: mutator.maxHpMultiplier ?? 1,
@@ -83,13 +80,14 @@ export function createGame(seed, profileValue = {}, options = {}) {
     xp: 0,
     gold: mutator.startingGold ?? 8,
     inventory: [{ id: "starter-tonic", name: "Common Warmth Tonic", type: "tonic", slot: "consumable", rarity: "common", color: "#b9c2b8", floor: 1, value: 0, stackable: true, quantity: 1, attack: 0, defense: 0, maxHp: 0, crit: 0, speed: 0, vision: 0, lifeSteal: 0, thorns: 0, reach: 0, heal: 12 }],
-    equipment: { weapon: starterItem(), armor: null, helmet: null, boots: null, ring1: null, ring2: null, amulet: null },
+    equipment: { weapon: { ...character.startingWeapon }, armor: null, helmet: null, boots: null, ring1: null, ring2: null, amulet: null },
     bonusScore: 0,
   };
   recalculatePlayer(player);
   const currentFloor = generateFloor(seed, 1, maxFloors, { mutator });
   player.x = currentFloor.map.start.x;
   player.y = currentFloor.map.start.y;
+  player.facing = "right";
   const rng = new Rng(`${String(seed)}::run`);
   const state = {
     seed: String(seed ?? 0),
@@ -127,7 +125,7 @@ function featureAt(state, x, y) {
 }
 
 function playerCombatSnapshot(player) {
-  return { name: "You", attack: player.attack, defense: player.defense, crit: player.crit, speed: player.speed };
+  return { name: player.name, attack: player.attack, defense: player.defense, crit: player.crit, speed: player.speed };
 }
 
 function collectAtPlayer(state) {
@@ -158,14 +156,14 @@ function defeatEnemy(state, enemy) {
   state.player.gold += enemy.gold;
   gainExperience(state, enemy.xp);
   pushLog(state, `${enemy.name} falls. +${enemy.gold} gold, +${enemy.xp} XP.`, "good");
-  const item = createEnemyItemDrop(enemy, state.rng, createLoot, state.floor);
-  if (item && enemy.type === "vault-warden") {
-    const added = addToInventory(state.player, item, INVENTORY_CAPACITY);
-    if (!added.ok) state.player.gold += item.value;
-    pushLog(state, added.ok ? `The Warden yields ${item.name}.` : `The Warden's relic is sold for ${item.value} gold; your pack is full.`, "loot");
-  } else if (item) {
-    state.drops.push(makeItemDrop(item, enemy.x, enemy.y, "enemy"));
-    pushLog(state, `${item.name} falls to the floor.`, "loot");
+  const item=createEnemyItemDrop(enemy,state.rng,createLoot,state.floor);
+  if(item&&enemy.type==="vault-warden"){
+    const added=addToInventory(state.player,item,INVENTORY_CAPACITY);
+    if(!added.ok)state.player.gold+=item.value;
+    pushLog(state,added.ok?`The Warden yields ${item.name}.`:`The Warden's relic is sold for ${item.value} gold; your pack is full.`,"loot");
+  }else if(item){
+    state.drops.push(makeItemDrop(item,enemy.x,enemy.y,"enemy"));
+    pushLog(state,`${item.name} falls to the floor.`,"loot");
   }
   if (enemy.type === "vault-warden") {
     state.bossDefeated = true;
@@ -184,11 +182,17 @@ function playerAttack(state, enemy) {
 }
 
 function enemyAttack(state, enemy) {
-  const result = resolveAttack(enemy, state.player, state.rng);
+  const player=state.player;
+  const guardAvailable=player.passiveId==="stoneward"&&player.passiveUsedFloor!==state.floor;
+  const guard=guardAvailable?(player.passive.firstHitReduction??0):0;
+  const target={...player,hp:player.hp,defense:player.defense+guard};
+  const result = resolveAttack(enemy,target,state.rng);
   if(result.evaded){pushLog(state,`You evade ${enemy.name}'s strike.`,"good");return;}
+  player.hp=target.hp;
+  if(guard>0){player.passiveUsedFloor=state.floor;pushLog(state,`Stoneward softens the blow by ${guard}.`,"good");}
   pushLog(state, `${result.critical ? "Critical! " : ""}${enemy.name} hits you for ${result.damage}.`, "danger");
-  if(state.player.thorns>0&&enemy.alive){enemy.hp=Math.max(0,enemy.hp-state.player.thorns);pushLog(state,`Thorns deal ${state.player.thorns} damage to ${enemy.name}.`,"combat");if(enemy.hp===0)defeatEnemy(state,enemy);}
-  if (state.player.hp <= 0) {
+  if(player.thorns>0&&enemy.alive){enemy.hp=Math.max(0,enemy.hp-player.thorns);pushLog(state,`Thorns deal ${player.thorns} damage to ${enemy.name}.`,"combat");if(enemy.hp===0)defeatEnemy(state,enemy);}
+  if (player.hp <= 0) {
     setTerminalStatus(state, "gameover");
     pushLog(state, "You fall. The vault keeps what it was owed.", "death");
   }
@@ -329,11 +333,13 @@ export function performAction(state, intent) {
       if (x < 0 || y < 0 || x >= state.map.width || y >= state.map.height) return { ok: false, consumedTurn: false, reason: "blocked" };
       const enemy = state.enemies.find((entry) => entry.alive && entry.x === x && entry.y === y);
       if (enemy) {
+        state.player.facing=intent.dx<0?"left":"right";
         playerAttack(state, enemy);
         result = { ok: true, consumedTurn: true };
       } else if (state.map.tiles[y * state.map.width + x] === TILE.WALL) {
         return { ok: false, consumedTurn: false, reason: "blocked" };
       } else {
+        state.player.facing=intent.dx<0?"left":"right";
         state.player.x = x;
         state.player.y = y;
         collectAtPlayer(state);

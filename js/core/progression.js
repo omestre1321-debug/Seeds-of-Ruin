@@ -1,4 +1,5 @@
 import { MUTATORS } from "./mutators.js";
+import { createCharacter, sanitizeCharacter } from "./character.js";
 
 export const PROFILE_VERSION = 1;
 export const DEFAULT_PROFILE = Object.freeze({
@@ -9,6 +10,7 @@ export const DEFAULT_PROFILE = Object.freeze({
   bestFloor: 0,
   unlockedMutators: ["none"],
   selectedMutator: "none",
+  defaultCharacter: createCharacter(),
 });
 
 export function sanitizeProfile(value) {
@@ -28,6 +30,7 @@ export function sanitizeProfile(value) {
     bestFloor: Math.min(99, clampCounter(value.bestFloor)),
     unlockedMutators: unlocked,
     selectedMutator: selected,
+    defaultCharacter: sanitizeCharacter(value.defaultCharacter),
   };
 }
 

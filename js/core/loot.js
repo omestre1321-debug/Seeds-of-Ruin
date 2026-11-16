@@ -1,4 +1,5 @@
 import { RARITIES, getRarity } from "../items/rarity.js";
+import { VISUAL_BY_RARITY } from "../data/itemVisuals.js";
 
 export { RARITIES, getRarity };
 
@@ -63,7 +64,8 @@ export function createLoot(rng, floor = 1, options = {}) {
   const type = rng.pick(types);
   const names = ITEM_NAMES[type];
   if (!names) throw new RangeError(`Unknown item type: ${type}`);
-  const name = `${rarity.label} ${rng.pick(PREFIXES)} ${rng.pick(names)}`;
+  const baseName=rng.pick(names);
+  const name = `${rarity.label} ${rng.pick(PREFIXES)} ${baseName}`;
   const stackable = type === "tonic" || type === "material";
   const item = {
     id: `drop-${rng.nextUint32().toString(16).padStart(8, "0")}`,
@@ -77,7 +79,9 @@ export function createLoot(rng, floor = 1, options = {}) {
     value: Math.max(2, Math.floor(5 * rarity.multiplier * (1 + (floor - 1) * 0.25))),
     stackable,
     quantity: 1,
-    stackType: type === "material" ? names[0] : type,
+    stackType: type === "material" ? baseName : type,
+    materialId: type === "material" ? baseName : undefined,
+    visualId: VISUAL_BY_RARITY[type]?.[rarity.id],
     attack: 0, defense: 0, maxHp: 0, crit: 0, speed: 0, vision: 0, lifeSteal: 0, thorns: 0, reach: 0,
     heal: 0,
   };
