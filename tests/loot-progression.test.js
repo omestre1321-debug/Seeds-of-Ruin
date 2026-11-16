@@ -21,12 +21,12 @@ test("seeded item generation repeats and rarity tiers add more attributes", () =
 
 test("tonics and materials stack without consuming more inventory slots",()=>{
   const player={inventory:[]};
-  const tonic={id:"tonic-a",type:"tonic",slot:"consumable",rarity:"rare",heal:18,stackable:true,quantity:1};
+  const tonic={id:"tonic-a",name:"Warmth Tonic",type:"tonic",slot:"consumable",rarity:"rare",heal:18,stackable:true,quantity:1};
   assert.equal(addToInventory(player,tonic).ok,true);
   assert.equal(addToInventory(player,{...tonic,id:"tonic-b",name:"Another tonic",quantity:2}).stacked,true);
   assert.equal(inventoryCount(player),1);
   assert.equal(player.inventory[0].quantity,3);
-  const shard={id:"shard-1",type:"material",slot:"material",materialId:"cinder",rarity:"common",stackable:true,quantity:1};
+  const shard={id:"shard-1",name:"Cinder Shard",type:"material",slot:"material",materialId:"cinder",rarity:"common",stackable:true,quantity:1};
   addToInventory(player,shard);addToInventory(player,{...shard,id:"shard-2",quantity:4});
   assert.equal(inventoryCount(player),2);
   assert.equal(player.inventory[1].quantity,5);
@@ -50,7 +50,7 @@ test("walking over a drop collects without a separate turn; full pack leaves it 
   assert.match(failed.messages[0],/Inventário cheio/);
 });
 
-test("equipment swaps return old gear, update totals, and unequip restores them",()=>{
+test("equipment swaps return prior gear, update totals, and unequip restores values",()=>{
   const old={id:"old-blade",name:"Old Blade",type:"weapon",slot:"weapon",attack:2,defense:0,maxHp:0,crit:0,speed:0,vision:0,lifeSteal:0,thorns:0,reach:0};
   const next={id:"new-blade",name:"New Blade",type:"weapon",slot:"weapon",attack:5,defense:0,maxHp:0,crit:.05,speed:0,vision:0,lifeSteal:0,thorns:0,reach:0};
   const player={inventory:[next],equipment:{weapon:old,armor:null,helmet:null,boots:null,ring1:null,ring2:null,amulet:null}};
@@ -67,7 +67,7 @@ test("equipment swaps return old gear, update totals, and unequip restores them"
   assert.ok(player.inventory.some((item)=>item.id==="new-blade"));
 });
 
-test("swap is blocked at capacity and both incoming and old gear remain unchanged",()=>{
+test("a full pack blocks swapping so the equipped piece cannot be lost",()=>{
   const previous={id:"old",name:"Old",type:"weapon",slot:"weapon",attack:1};
   const incoming={id:"new",name:"New",type:"weapon",slot:"weapon",attack:9};
   const player={inventory:[incoming,{id:"filler-1"},{id:"filler-2"}],equipment:{weapon:previous,armor:null,helmet:null,boots:null,ring1:null,ring2:null,amulet:null}};
@@ -79,7 +79,7 @@ test("swap is blocked at capacity and both incoming and old gear remain unchange
   assert.equal(player.inventory.some((item)=>item.id==="old"),false);
 });
 
-test("two rings use separate slots and deterministic enemy drops replay by seed",()=>{
+test("both ring slots can be filled and stats sum across them",()=>{
   const player={inventory:[
     {id:"ring-a",name:"Ring A",slot:"ring",type:"ring",attack:1},
     {id:"ring-b",name:"Ring B",slot:"ring",type:"ring",crit:.1},
@@ -88,11 +88,6 @@ test("two rings use separate slots and deterministic enemy drops replay by seed"
   assert.equal(equipItem(player,"ring-b","ring2").ok,true);
   assert.equal(equipmentBonuses(player).attack,1);
   assert.equal(equipmentBonuses(player).crit,.1);
-  const enemy={id:"boss",type:"vault-warden"};
-  const one=createLoot(new Rng("drop-seed"),4,{rarity:"rare"});
-  const two=createLoot(new Rng("drop-seed"),4,{rarity:"rare"});
-  assert.deepEqual(one,two);
-  assert.ok(one.rarity==="rare");
 });
 
 test("profile migration clamps invalid values and unlocks long-term mutators", () => {

@@ -65,6 +65,20 @@ test("permadeath terminates the run and rejects later actions", () => {
   assert.equal(performAction(state,{type:"wait"}).reason,"run-ended");
 });
 
+test("equipping and removing gear recalculates live player stats", () => {
+  const state=createGame("gear-stats");
+  const base=state.player.attack;
+  const weapon={id:"test-relic",name:"Rare Test Relic",slot:"weapon",type:"weapon",rarity:"rare",attack:7,defense:0,maxHp:0,crit:.04,speed:0,vision:0,lifeSteal:0,thorns:0,reach:0};
+  state.player.inventory.push(weapon);
+  assert.equal(performAction(state,{type:"equip",itemId:weapon.id,slot:"weapon"}).ok,true);
+  assert.equal(state.player.equipment.weapon.id,weapon.id);
+  assert.equal(state.player.attack,base-2+7);
+  assert.ok(state.player.inventory.some((item)=>item.id===state.player.character.startingWeapon.id));
+  assert.equal(performAction(state,{type:"unequip",slot:"weapon"}).ok,true);
+  assert.equal(state.player.equipment.weapon,null);
+  assert.equal(state.player.attack,base-2);
+});
+
 test("shop stays turn-paused and purchase validates gold and inventory capacity", () => {
   const state=createGame("shop-run");
   const shop=state.features.find((feature)=>feature.type==="shop");

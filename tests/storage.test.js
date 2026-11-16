@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadProfile, saveProfile, PROFILE_STORAGE_KEY } from "../js/utils/storage.js";
+import { createCharacter } from "../js/core/character.js";
 
 function memoryStorage(initial={}) {
   const values=new Map(Object.entries(initial));
@@ -12,7 +13,7 @@ function memoryStorage(initial={}) {
 
 test("profile storage round-trips a sanitized progress record",()=>{
   const storage=memoryStorage();
-  const profile={version:1,runs:5,wins:2,bestScore:900,bestFloor:4,unlockedMutators:["none","glass"],selectedMutator:"glass"};
+  const profile={version:1,runs:5,wins:2,bestScore:900,bestFloor:4,unlockedMutators:["none","glass"],selectedMutator:"glass",defaultCharacter:createCharacter({name:"Morrow Vale",classId:"wayfinder",appearance:{skin:"umber",hairStyle:"braided",hairColor:"silver",faceStyle:"scarred",outfitColor:"deepTeal"}})};
   assert.equal(saveProfile(profile,storage),true);
   assert.deepEqual(loadProfile(storage),profile);
   assert.ok(storage.getItem(PROFILE_STORAGE_KEY));

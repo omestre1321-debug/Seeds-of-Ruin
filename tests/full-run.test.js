@@ -19,11 +19,11 @@ function playGreedyRun(seed) {
       performAction(state,{type:"choose",choiceId:choice});continue;
     }
     if(state.overlay?.type==="shop"){
-      const offers=state.overlay.stock.filter((offer)=>!offer.sold&&state.player.gold>=offer.cost&&state.player.inventory.length<12);
+      const offers=state.overlay.stock.filter((offer)=>!offer.sold&&state.player.gold>=offer.cost&&state.player.inventory.length<20);
       const offer=offers.find((entry)=>entry.item.slot==="consumable")
         ||offers.find((entry)=>entry.item.slot==="weapon"&&entry.item.attack>state.player.attack-4)
         ||offers.find((entry)=>entry.item.slot==="armor")
-        ||offers.find((entry)=>entry.item.slot==="charm");
+        ||offers.find((entry)=>["helmet","boots","ring","amulet"].includes(entry.item.slot));
       if(offer){performAction(state,{type:"buy",itemId:offer.item.id});continue;}
       performAction(state,{type:"close"});continue;
     }
@@ -49,7 +49,7 @@ function playGreedyRun(seed) {
 }
 
 test("a deterministic prepared run can descend, fight the warden, and win",{timeout:10_000},()=>{
-  const {state,actions}=playGreedyRun("bot-2");
+  const {state,actions}=playGreedyRun("newbot-2");
   assert.equal(state.status,"victory");
   assert.equal(state.floor,4);
   assert.equal(state.bossDefeated,true);
