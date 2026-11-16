@@ -1,0 +1,14 @@
+# Local/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Node test output (there are no runtime dependencies)
+node_modules/
+coverage/
+*.log
+
+# Local browser automation artifacts
+playwright-report/
+test-results/
