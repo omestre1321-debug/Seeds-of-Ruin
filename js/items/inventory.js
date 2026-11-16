@@ -41,6 +41,19 @@ export function removeFromInventory(player, itemId, amount = 1) {
   return { ok: true, item: drop, remaining: quantity - removed };
 }
 
+export function consumeTonic(player,itemId) {
+  const index=player.inventory?.findIndex((entry)=>entry.id===itemId)??-1;
+  if(index<0)return {ok:false,reason:"missing"};
+  const item=player.inventory[index];
+  if(item.slot!=="consumable"||item.heal<=0)return {ok:false,reason:"not-consumable"};
+  const healed=Math.min(player.maxHp-player.hp,item.heal);
+  if(healed<=0)return {ok:false,reason:"already-healthy"};
+  player.hp+=healed;
+  const quantity=Math.max(1,Math.floor(item.quantity??1));
+  if(quantity>1)item.quantity=quantity-1;else player.inventory.splice(index,1);
+  return {ok:true,healed,remaining:quantity-1};
+}
+
 export function inventoryCount(player) {
   return Array.isArray(player.inventory) ? player.inventory.length : 0;
 }
