@@ -46,7 +46,19 @@ Loot rarities are Common, Uncommon, Rare, Epic and Legendary, with increasing at
 
 Floor drops are data records with stable per-run entity IDs, source, item snapshot and grid position, leaving a clean boundary for a future server-authoritative online mode. Multiplayer/online mode is not implemented. Enemy and cache rewards are seed-driven; currency is added directly to gold, while items can be picked up, stacked, equipped, discarded or dropped from a gear slot.
 
-`js/ui/particles.js` is independent of the turn simulation. It uses declarative presets, delta-time updates and a reusable object pool capped at 500. Presets cover rarity-colored drop glints/bursts, pickup trails, equip aura, damage/death sparks, ambient embers and stair spirals. World-bound effects are emitted/drawn only for visible tiles. The **Reduced visual effects** menu option is saved separately in localStorage and lowers the effect rate; particles never advance a turn.
+`js/ui/particles.js` is independent of the turn simulation. It uses declarative presets, delta-time updates and a reusable object pool capped at 500. Presets cover rarity-colored drop glints/bursts, pickup trails, equip aura, damage/death sparks, dust, torch sparks, lava embers, water bubbles, foundry sparks and stair spirals. World-bound effects are emitted/drawn only for visible tiles. The **Reduced visual effects** menu option is saved separately in localStorage and lowers the effect rate; particles never advance a turn.
+
+## Biomes and dungeon presentation
+
+Five original, data-defined environments live in `js/data/biomes.js`: **Basalt Halls** (`stone`), **The Quiet Sepulcher** (`crypt`), **Buried Thermal Foundry** (`foundry`), **Cinderflow Cavern** (`lava`) and **The Ashen Sanctuary** (`sanctum`). The ordinary floor progression is stone → crypt → foundry → lava. The entry room on later floors retains the preceding material palette as a deliberate transition; treasure/event/boss rooms may use the sanctuary theme. Biome and room decoration streams are derived from the world seed but isolated from combat/map RNG, so replaying a seed reproduces rooms, themes, props, hazards and lights without changing game decisions.
+
+`js/core/map/biome-layout.js` paints room/corridor biome IDs, props, light sources, visual trap marks and a limited number of blocking pillars/rubble. Before placement it reserves shortest routes from spawn to every room center and the stairs, plus feature/enemy cells; blocking props become ordinary wall tiles outside those routes, so player collision, enemy A* and flood-fill agree. Spike/fissure/arc markers are intentionally visual-only in this scope and do not apply hidden damage. Water, lava and energy patterns remain walkable decorative surfaces.
+
+`js/render/biome-renderer.js` draws original Canvas geometry from palette data. Walls use a cardinal autotile mask and a raised cap plus south-facing masonry face; six neighborhood cases alter edge/seam details. Floor marks use a coordinate hash from the visual seed for deterministic flecks, plate seams, dust, mosaic and basalt cracks, not repeated image tiles. Original prop silhouettes are composed from Canvas primitives; there are no external art assets.
+
+`js/render/dungeon-renderer.js` uses an offscreen static terrain/prop cache keyed by map and tile size, then layers fog, visible interactables and actors. The animation overlay redraws only small water/lava/energy accents and radial light pools. Light gradients use additive blending, have a soft biome-colored vignette and are clipped to the current visible-tile mask to prevent lighting through unexplored fog. Reduced-effects mode holds animation at a stable frame and skips optional radial light/ambient effects; navigation, map seed and simulation are unchanged. The minimap and HUD accent follow the current floor biome.
+
+The HUD has a segmented **Vitality** bar and an **Experience / Resonance** progress bar. The current game core has no mana or spell resource; the second bar therefore reports real XP toward the next level instead of presenting a fake mana value. No new combat resource was introduced for a visual-only task.
 
 ## Architecture and algorithms
 
@@ -65,10 +77,11 @@ index.html                 screens and accessible controls
 css/styles.css             responsive desktop/mobile layout
 js/main.js                 UI composition, input, audio and visual effects
 js/core/                   deterministic game rules, maps, combat and character data
-js/data/                   classes, appearance options and item visual descriptors
+js/data/                   classes, appearance, item visuals and five biome palettes/rules
 js/items/                  inventory stacks, equipment slots and floor drops
-js/render/                 Canvas map/minimap drawing
+js/render/                 procedural tiles, biome lighting, fog and minimap cache
 js/ui/                     character compositor and particle pool
+STYLE.md                   original visual direction derived from broad reference lessons
 js/utils/                  guarded localStorage and random-seed adapters
 tests/                     Node test suites
 PLANO.md                   architecture and staged checklist
@@ -76,10 +89,10 @@ PLANO.md                   architecture and staged checklist
 
 ## Verification and limitations
 
-`node --test` currently passes **51 tests**, including 500 deterministic dungeon seeds, RNG/path/FOV, all class/appearance combinations, drop pickup/full pack, stack quantities, gear swap/blocked swap/stat recalculation, equipment layer caching, particle-pool reuse, seed independence, storage fallbacks, and a scripted full run. `node --check` has been run on all modules.
+`node --test` currently passes **58 tests**, including 500 world seeds across all four floors with props/hazards, route preservation to every room/feature/enemy/stair, biome data completeness/progression/replay, autotiling and FOV-clipped light/cache checks, plus RNG/path/FOV, character options, inventory/equipment, particle pooling, storage fallbacks and a scripted full run. `node --check` has been run on every JavaScript module.
 
 This environment has no browser executable, so no visual browser/device playthrough is claimed. The static page is served locally at `http://localhost:8000` and responds successfully; the menu-to-character-to-game flow, touch hit areas, audio policy, color contrast and Canvas cache performance still need verification in an actual browser. A deterministic loot-seeking balance smoke test is part of Node tests; manual tuning remains open. See `PLANO.md` for checklist and remaining QA.
 
-## Inspiration credits and originality
+## Style references — inspiration only
 
-The user-provided images under `/workspace/desktop/ref/` were viewed only for broad visual ideas: compact pixel-scale readability and distinct facing/equipment silhouettes (`images _1_.jpg`, `images _2_.jpg`, `images _3_.jpg`, `images.png`). They contain character imagery, not inventory or particle-system designs. No source, pixel arrangement, sprite, name, character, text, sound or asset was copied. All shapes, class/item names, palettes, UI, animations and effects were created for Ashen Reach. The equipment-slot panel follows the requested general RPG paper-doll idea, not a copied game screen.
+The supplied images in `/workspace/desktop/ref/` (`images _1_.jpg`, `images _2_.jpg`, `images _3_.jpg`, `images.png`) were consulted only for general lessons about limited per-environment palettes, warm/cool light contrast, spatial depth and purposeful prop density. The implementation proceeded from `STYLE.md` without revisiting the images. No sprite, tile, pixel arrangement, room layout, prop silhouette, palette sequence, composition or other asset was copied or closely recreated. All biome geometry, palettes, patterns, props and effects are original Canvas drawing/data.

@@ -2,6 +2,7 @@ import { createEnemy, ENEMY_TYPES } from "../enemies.js";
 import { Rng } from "../rng.js";
 import { applyEnemyMutator } from "../mutators.js";
 import { generateDungeon } from "./bsp.js";
+import { generateBiomeLayout } from "./biome-layout.js";
 import { TILE } from "./tiles.js";
 
 function positionKey(position) {
@@ -91,5 +92,6 @@ export function generateFloor(runSeed, floorNumber, maxFloors = 4, options = {})
   }
 
   if (floorNumber > 1) map.tiles[map.start.y * map.width + map.start.x] = TILE.STAIRS_UP;
-  return { floor: floorNumber, maxFloors, seed: floorSeed, map, features, enemies, bossDefeated: false };
+  const biome = generateBiomeLayout(map, { floorNumber, maxFloors, seed: floorSeed, features, enemies });
+  return { floor: floorNumber, maxFloors, seed: floorSeed, map, features, enemies, biome, bossDefeated: false };
 }

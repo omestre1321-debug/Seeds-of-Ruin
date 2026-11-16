@@ -7,6 +7,8 @@ import { recordRun, sanitizeProfile, selectMutator } from "./core/progression.js
 import { loadProfile, loadOptions, saveProfile, saveOptions } from "./utils/storage.js";
 import { randomWorldSeed } from "./utils/seed-input.js";
 import { drawGame, drawMinimap, screenToTile } from "./render/dungeon-renderer.js";
+import { drawBiomeOverlay } from "./render/biome-renderer.js";
+import { BIOMES } from "./data/biomes.js";
 import { EQUIPMENT_SLOTS, compareWithEquipped } from "./items/equipment.js";
 import { INVENTORY_CAPACITY, isStackable } from "./items/inventory.js";
 import { getRarity } from "./items/rarity.js";
@@ -27,7 +29,7 @@ const ui = {
   modal: $("#modal-root"), modalTitle: $("#modal-title"), modalEyebrow: $("#modal-eyebrow"), modalContent: $("#modal-content"),
   floorTitle: $("#floor-title"), floorSubtitle: $("#floor-subtitle"), runSeed: $("#run-seed"), runScore: $("#run-score"),
   turn: $("#turn-label"), location: $("#location-label"), hp: $("#hp-label"), hpMeter: $("#hp-meter"),
-  xp: $("#xp-label"), gold: $("#gold-label"), level: $("#level-label"), attack: $("#attack-label"), defense: $("#defense-label"), crit: $("#crit-label"),
+  xp: $("#xp-label"), xpMeter: $("#xp-meter"), gold: $("#gold-label"), level: $("#level-label"), attack: $("#attack-label"), defense: $("#defense-label"), crit: $("#crit-label"),
   log: $("#combat-log"), enemyCount: $("#enemy-count"), visibility: $("#visibility-label"),
   reducedEffects:$("#reduced-effects"),
 };
@@ -202,16 +204,21 @@ function renderGame() {
   resizeCanvas(ui.minimap);
   drawMinimap(ui.minimap.getContext("2d", { alpha: false }), game, ui.minimap.width, ui.minimap.height);
 
+  const floorBiome=BIOMES[game.map.biomeId]??BIOMES.stone;
+  ui.game.style.setProperty("--floor-accent",floorBiome.palette.accent);
   ui.floorTitle.textContent = `Cinder Vault · Floor ${roman(game.floor)}`;
   $("#player-title").textContent=game.player.name;
   $("#player-class-label").textContent=`${game.player.character.className} · ${game.player.character.passiveName}`;
-  ui.floorSubtitle.textContent = `THE CINDER VAULT · ${game.mutator.name.toUpperCase()}`;
+  ui.floorSubtitle.textContent = `${floorBiome.label.toUpperCase()} · ${game.mutator.name.toUpperCase()}`;
   ui.runSeed.textContent = game.seed;
   ui.runScore.textContent = String(game.status === "playing" ? getRunSummary(game).score : game.score);
   ui.turn.textContent = `TURN ${game.turn}`;
   ui.hp.textContent = `${game.player.hp} / ${game.player.maxHp}`;
   ui.hpMeter.style.width = `${Math.max(0, Math.min(100, 100 * game.player.hp / game.player.maxHp))}%`;
-  ui.xp.textContent = `${game.player.xp} / ${game.player.level * 18} XP`;
+  const xpPercent=Math.max(0,Math.min(100,100*game.player.xp/(game.player.level*18)));
+  ui.xp.textContent = `RESONANCE · ${game.player.xp} / ${game.player.level * 18} XP`;
+  ui.xpMeter.style.width = `${xpPercent}%`;
+  ui.xpMeter.parentElement.setAttribute("aria-valuenow",String(Math.round(xpPercent)));
   ui.gold.textContent = `◈ ${game.player.gold}`;
   ui.level.textContent = `LV ${game.player.level}`;
   ui.attack.textContent = String(game.player.attack);
@@ -547,13 +554,22 @@ function animateVisuals(timestamp){
   const active=game&&game.status==="playing"&&!ui.game.classList.contains("is-hidden");
   if(!active||!lastLayout){particleContext.clearRect(0,0,ui.particleCanvas.width,ui.particleCanvas.height);return;}
   resizeCanvas(ui.particleCanvas);particleContext.clearRect(0,0,ui.particleCanvas.width,ui.particleCanvas.height);
+  drawBiomeOverlay(particleContext,game,lastLayout,timestamp,visualOptions.reducedEffects);
   const tileSize=lastLayout.tileSize;
   characterRenderer.draw(particleContext,lastLayout.playerX,lastLayout.playerY,tileSize*1.35,game.player.character,game.player.equipment,{direction:game.player.facing,moving:timestamp<walkingUntil,time:timestamp,flash:timestamp<flashUntil ? 0.6 : 0});
   ambienceTimer+=dt;dropTimer+=dt;stairTimer+=dt;
   if(ambienceTimer>=(visualOptions.reducedEffects?1.1:.34)){
-    ambienceTimer=0;const candidates=[];
-    for(let y=0;y<game.map.height;y+=1)for(let x=0;x<game.map.width;x+=1){const index=y*game.map.width+x;if(game.visible[index]&&game.map.tiles[index]!==TILE.WALL)candidates.push({x,y});}
-    if(candidates.length){const cell=visualRng.pick(candidates);emitAtTile("ambientEmber",cell.x,cell.y,{color:visualRng.chance(.45)?"#e7a96b":"#8fc5a8",count:visualOptions.reducedEffects?1:2});}
+    ambienceTimer=0;
+    const visibleProps=(game.map.decorations??[]).filter((prop)=>game.visible[prop.y*game.map.width+prop.x]===1);
+    if(visibleProps.length){
+      const prop=visualRng.pick(visibleProps);
+      const preset=prop.animation==="water"?"waterBubble":prop.animation==="lava"||game.map.biomeId==="lava"?"lavaEmber":prop.animation==="energy"?"foundrySpark":prop.animation==="flame"?"torchSpark":"dustMote";
+      emitAtTile(preset,prop.x,prop.y,{color:prop.lightColor??prop.color,count:visualOptions.reducedEffects?1:2});
+    }else{
+      const candidates=[];
+      for(let y=0;y<game.map.height;y+=1)for(let x=0;x<game.map.width;x+=1){const index=y*game.map.width+x;if(game.visible[index]&&game.map.tiles[index]!==TILE.WALL)candidates.push({x,y});}
+      if(candidates.length){const cell=visualRng.pick(candidates);const preset=game.map.biomeId==="lava"?"lavaEmber":"dustMote";emitAtTile(preset,cell.x,cell.y,{color:BIOMES[game.map.biomeId]?.palette.light??"#e7a96b",count:visualOptions.reducedEffects?1:2});}
+    }
   }
   if(dropTimer>=(visualOptions.reducedEffects ? 0.5 : 0.2)){
     dropTimer=0;
