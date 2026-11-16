@@ -5,6 +5,14 @@ import { MUTATORS } from "./core/mutators.js";
 import { recordRun, sanitizeProfile, selectMutator } from "./core/progression.js";
 import { loadProfile, saveProfile } from "./utils/storage.js";
 import { drawGame, drawMinimap, screenToTile } from "./render/dungeon-renderer.js";
+import { EQUIPMENT_SLOTS, compareWithEquipped } from "./items/equipment.js";
+import { INVENTORY_CAPACITY, isStackable } from "./items/inventory.js";
+import { getRarity } from "./items/rarity.js";
+import { EQUIPMENT_SLOTS, compareWithEquipped } from "./items/equipment.js";
+import { INVENTORY_CAPACITY, isStackable } from "./items/inventory.js";
+import { getRarity } from "./items/rarity.js";
+import { EQUIPMENT_SLOTS, compareWithEquipped } from "./items/equipment.js";
+import { getRarity } from "./items/rarity.js";
 
 const $ = (selector) => document.querySelector(selector);
 const ui = {
@@ -24,6 +32,13 @@ let modalMode = null;
 let audioContext = null;
 let soundEnabled = true;
 let lastLogLength = 0;
+let selectedInventoryId=null;
+let selectedRingSlot="ring1";
+let inventoryNotice="";
+let selectedInventoryId=null;
+let selectedRingSlot="ring1";
+let inventoryNotice="";
+let inventoryNotice="";
 
 function randomSeed() {
   const bytes = new Uint32Array(1);
@@ -152,41 +167,79 @@ function closeModal() {
   if (ui.modal) ui.modal.classList.add("is-hidden");
 }
 
-function makeItemRow(item, equipped) {
-  const row = document.createElement("div");
-  row.className = "item-row";
-  const copy = document.createElement("div"); copy.className = "item-copy";
-  const title = document.createElement("span"); title.className = `item-name ${item.rarity}`; title.textContent = `${item.name}${equipped ? " · EQUIPPED" : ""}`;
-  const stats = document.createElement("span"); stats.className = "item-stats";
-  stats.textContent = [item.attack ? `ATK +${item.attack}` : "", item.defense ? `DEF +${item.defense}` : "", item.crit ? `CRIT +${Math.round(item.crit*100)}%` : "", item.heal ? `HEAL ${item.heal}` : ""].filter(Boolean).join(" · ") || item.slot.toUpperCase();
-  copy.append(title, stats); row.append(copy);
-  const actions = document.createElement("div"); actions.className = "item-actions";
-  if (["weapon", "armor", "charm"].includes(item.slot)) {
-    const button = document.createElement("button"); button.textContent = equipped ? "ON" : "EQUIP"; button.disabled = equipped;
-    button.addEventListener("click", () => runAction({ type: "equip", itemId: item.id })); actions.append(button);
-  } else if (item.slot === "consumable") {
-    const button = document.createElement("button"); button.textContent = "USE";
-    button.addEventListener("click", () => { closeModal(); runAction({ type: "use", itemId: item.id }); }); actions.append(button);
-  }
-  row.append(actions);
-  return row;
+function itemStatLabels(item){
+  return [["attack","ATK"],["defense","DEF"],["maxHp","MAX HP"],["crit","CRIT"],["speed","DODGE"],["vision","VISION"],["lifeSteal","LIFESTEAL"],["thorns","THORNS"],["reach","REACH"],["heal","HEAL"]]
+    .filter(([stat])=>Number(item[stat]??0)!==0)
+    .map(([stat,label])=>`${label} +${["crit","speed","lifeSteal"].includes(stat)?`${Math.round(item[stat]*100)}%`:item[stat]}`);
 }
 
-function renderInventory() {
-  const content = document.createElement("div"); content.className = "modal-content";
-  const summary = document.createElement("p"); summary.textContent = `Gold ${game.player.gold} · ${game.player.inventory.length} / 12 slots`;
-  content.append(summary);
-  if (game.player.inventory.length === 0) {
-    const empty = document.createElement("p"); empty.textContent = "Your pack is empty."; content.append(empty);
+function itemTooltip(item){
+  const rarity=getRarity(item.rarity);
+  return `${item.name} · ${rarity.labelPt} · ${item.slot}\n${itemStatLabels(item).join(" · ")||"No direct stat bonus"}\n${item.quantity>1?`Quantity: ${item.quantity}`:""}`;
+}
+
+function renderInventory(){
+  const content=document.createElement("div");content.className="modal-content inventory-screen";
+  const header=document.createElement("div");header.className="inventory-summary";
+  const capacity=document.createElement("span");capacity.textContent=`PACK ${game.player.inventory.length} / ${INVENTORY_CAPACITY}`;
+  const currency=document.createElement("strong");currency.textContent=`◈ ${game.player.gold}`;header.append(capacity,currency);content.append(header);
+  if(inventoryNotice){const notice=document.createElement("p");notice.className="inventory-notice";notice.textContent=inventoryNotice;content.append(notice);}
+
+  const slotGrid=document.createElement("div");slotGrid.className="equipment-grid";
+  for(const slot of EQUIPMENT_SLOTS){
+    const item=game.player.equipment[slot.id];const cell=document.createElement("div");cell.className="equipment-slot";
+    const label=document.createElement("span");label.className="slot-label";label.textContent=slot.label;
+    const name=document.createElement("span");name.className=`slot-item ${item?`rarity-${item.rarity}`:"empty"}`;name.textContent=item?item.name:"Empty";name.title=item?itemTooltip(item):"Empty slot";
+    cell.append(label,name);
+    if(item){const remove=document.createElement("button");remove.type="button";remove.className="slot-remove";remove.textContent="UNEQUIP";remove.disabled=game.player.inventory.length>=INVENTORY_CAPACITY;remove.addEventListener("click",()=>runAction({type:"unequip",slot:slot.id}));cell.append(remove);}
+    slotGrid.append(cell);
   }
-  for (const item of game.player.inventory) {
-    const equipped = Object.values(game.player.equipment).includes(item.id);
-    content.append(makeItemRow(item, equipped));
+  content.append(slotGrid);
+
+  const stats=document.createElement("div");stats.className="character-stats";
+  const statsValues=[["HP",`${game.player.hp} / ${game.player.maxHp}`],["ATK",game.player.attack],["DEF",game.player.defense],["CRIT",`${Math.round(game.player.crit*100)}%`],["DODGE",`${Math.round(game.player.speed*8)}%`],["VISION",8+game.player.vision],["REACH",1+Math.floor(game.player.reach)],["LIFESTEAL",`${Math.round(game.player.lifeSteal*100)}%`],["THORNS",game.player.thorns]];
+  for(const [label,value]of statsValues){const cell=document.createElement("span");cell.textContent=`${label} ${value}`;stats.append(cell);}
+  content.append(stats);
+
+  const packTitle=document.createElement("p");packTitle.className="pack-title";packTitle.textContent="PACK · SELECT AN ITEM FOR ACTIONS";content.append(packTitle);
+  const grid=document.createElement("div");grid.className="inventory-grid";
+  for(let index=0;index<INVENTORY_CAPACITY;index++){
+    const item=game.player.inventory[index];const cell=document.createElement("button");cell.type="button";cell.className=`inventory-cell ${item?`rarity-border-${item.rarity}`:"empty"} ${item?.id===selectedInventoryId?"selected":""}`;
+    cell.disabled=!item;cell.title=item?itemTooltip(item):`Empty slot ${index+1}`;
+    const indexLabel=document.createElement("span");indexLabel.className="cell-index";indexLabel.textContent=String(index+1).padStart(2,"0");cell.append(indexLabel);
+    if(item){const name=document.createElement("span");name.className=`cell-name rarity-${item.rarity}`;name.textContent=item.name;cell.append(name);if(item.quantity>1){const qty=document.createElement("b");qty.className="stack-count";qty.textContent=`×${item.quantity}`;cell.append(qty);}
+      cell.addEventListener("click",()=>{selectedInventoryId=item.id;inventoryNotice="";renderModal();});}
+    else{const empty=document.createElement("span");empty.className="cell-empty";empty.textContent="—";cell.append(empty);}
+    grid.append(cell);
   }
-  ui.modalTitle.textContent = "Your pack";
-  ui.modalEyebrow.textContent = "INVENTORY & EQUIPMENT";
-  ui.modalContent.replaceChildren(content);
-  ui.modal.classList.remove("is-hidden");
+  content.append(grid);
+
+  const selected=game.player.inventory.find((item)=>item.id===selectedInventoryId)??game.player.inventory[0];
+  selectedInventoryId=selected?.id??null;
+  if(selected){
+    const detail=document.createElement("section");detail.className="item-detail";
+    const title=document.createElement("h3");title.className=`item-name rarity-${selected.rarity}`;title.textContent=selected.name;detail.append(title);
+    const statsList=document.createElement("div");statsList.className="item-attributes";statsList.textContent=itemStatLabels(selected).join(" · ")||`Stack ×${selected.quantity??1}`;detail.append(statsList);
+    if(["weapon","armor","helmet","boots","ring","amulet"].includes(selected.slot)){
+      let selectedSlot=selected.slot;
+      if(selected.slot==="ring"){
+        const select=document.createElement("select");select.className="ring-slot-select";
+        for(const id of ["ring1","ring2"]){const option=document.createElement("option");option.value=id;option.textContent=id==="ring1"?"Ring I":"Ring II";select.append(option);}
+        select.value=selectedRingSlot;select.addEventListener("change",()=>{selectedRingSlot=select.value;renderModal();});detail.append(select);selectedSlot=selectedRingSlot;
+      }
+      const comparison=compareWithEquipped(game.player,selected,selectedSlot);
+      if(comparison.current){const compare=document.createElement("div");compare.className="comparison-list";const compareHeading=document.createElement("span");compareHeading.textContent=`Compared with ${comparison.current.name}`;compare.append(compareHeading);
+        for(const change of comparison.changes){const line=document.createElement("span");line.className=change.delta>0?"better":change.delta<0?"worse":"even";line.textContent=`${change.stat}: ${change.current} → ${change.candidate}`;compare.append(line);}detail.append(compare);}
+      else{const compare=document.createElement("p");compare.className="item-stats";compare.textContent="No item equipped in this slot.";detail.append(compare);}
+      const equip=document.createElement("button");equip.type="button";equip.className="secondary-button";equip.textContent=`EQUIP${selected.slot==="ring"?` ${selectedSlot.toUpperCase()}`:""}`;equip.addEventListener("click",()=>runAction({type:"equip",itemId:selected.id,slot:selectedSlot}));detail.append(equip);
+    }
+    if(selected.slot==="consumable"){const use=document.createElement("button");use.type="button";use.className="secondary-button";use.textContent="USE";use.addEventListener("click",()=>runAction({type:"use",itemId:selected.id}));detail.append(use);}
+    const discard=document.createElement("button");discard.type="button";discard.className="discard-button";discard.textContent=`DISCARD ${isStackable(selected)&&selected.quantity>1?"ONE":"ITEM"}`;discard.addEventListener("click",()=>runAction({type:"discard",itemId:selected.id}));detail.append(discard);
+    content.append(detail);
+  }
+  ui.modalTitle.textContent=`${game.player.name}'s Pack`;
+  ui.modalEyebrow.textContent=`${game.player.character.className} · INVENTORY & EQUIPMENT`;
+  ui.modalContent.replaceChildren(content);ui.modal.classList.remove("is-hidden");
 }
 
 function renderGameOverlay() {
@@ -200,7 +253,7 @@ function renderGameOverlay() {
       if (offer.sold) continue;
       const row = document.createElement("div"); row.className = "shop-offer";
       const label = document.createElement("span"); label.className = `item-name ${offer.item.rarity}`; label.textContent = `${offer.item.name} · ${itemShortStats(offer.item)}`;
-      const button = document.createElement("button"); button.textContent = `BUY ◈ ${offer.cost}`; button.disabled = game.player.gold < offer.cost || game.player.inventory.length >= 12;
+      const button = document.createElement("button"); button.textContent = `BUY ◈ ${offer.cost}`; button.disabled = game.player.gold < offer.cost || game.player.inventory.length >= INVENTORY_CAPACITY;
       button.addEventListener("click", () => runAction({ type: "buy", itemId: offer.item.id }));
       row.append(label, button); content.append(row);
     }
@@ -218,7 +271,7 @@ function renderGameOverlay() {
 }
 
 function itemShortStats(item) {
-  return [item.attack ? `ATK+${item.attack}` : "", item.defense ? `DEF+${item.defense}` : "", item.crit ? `CRIT+${Math.round(item.crit*100)}%` : "", item.heal ? `HEAL ${item.heal}` : ""].filter(Boolean).join(" ");
+  return itemStatLabels(item).join(" ") || (item.quantity>1?`STACK ×${item.quantity}`:item.slot.toUpperCase());
 }
 
 function renderModal() {
@@ -232,7 +285,8 @@ function runAction(intent) {
   if (!game) return;
   const oldHp = game.player.hp;
   const result = performAction(game, intent);
-  if (!result.ok && result.reason) setLocation(result.reason);
+  if (!result.ok && result.reason) { inventoryNotice=result.reason; setLocation(result.reason); }
+  else inventoryNotice="";
   if (result.ok) {
     if (intent.type === "move") playSound("step");
     if (intent.type === "attack" || intent.type === "move" && game.log.at(-1)?.type === "combat") playSound("hit");
