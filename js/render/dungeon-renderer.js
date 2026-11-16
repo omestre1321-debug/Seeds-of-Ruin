@@ -100,8 +100,10 @@ export function drawGame(context, state, pixelWidth, pixelHeight) {
 
   for (const drop of state.drops) {
     const index = drop.y * map.width + drop.x;
-    if (drop.taken || state.visible?.[index] !== 1) continue;
-    marker(context, "*", offsetX + (drop.x + 0.5) * tileSize, offsetY + (drop.y + 0.5) * tileSize, tileSize, drop.item.color ?? GAME.treasure);
+    if (drop.collected || state.visible?.[index] !== 1) continue;
+    const x=offsetX+(drop.x+0.5)*tileSize; const y=offsetY+(drop.y+0.5)*tileSize;
+    context.save(); context.shadowColor=drop.item.color??GAME.treasure; context.shadowBlur=4+(drop.item.rarityGlow??0.3)*7;
+    marker(context,"✦",x,y,tileSize,drop.item.color??GAME.treasure); context.restore();
   }
   for (const enemy of state.enemies) {
     if (!enemy.alive || state.visible?.[enemy.y * map.width + enemy.x] !== 1) continue;
