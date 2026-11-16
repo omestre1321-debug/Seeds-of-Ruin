@@ -70,7 +70,7 @@ function marker(context, text, x, y, size, color) {
   context.fillText(text, x, y + 0.5);
 }
 
-export function drawGame(context, state, pixelWidth, pixelHeight) {
+export function drawGame(context, state, pixelWidth, pixelHeight, options = {}) {
   context.clearRect(0, 0, pixelWidth, pixelHeight);
   context.fillStyle = "#0b100e";
   context.fillRect(0, 0, pixelWidth, pixelHeight);
@@ -123,15 +123,13 @@ export function drawGame(context, state, pixelWidth, pixelHeight) {
 
   const playerX = offsetX + (state.player.x + 0.5) * tileSize;
   const playerY = offsetY + (state.player.y + 0.5) * tileSize;
-  context.fillStyle = "#e6c17a";
-  context.beginPath();
-  context.arc(playerX, playerY, Math.max(3, tileSize * 0.36), 0, Math.PI * 2);
-  context.fill();
-  context.fillStyle = GAME.player;
-  context.beginPath();
-  context.arc(playerX, playerY - tileSize * 0.04, Math.max(2, tileSize * 0.22), 0, Math.PI * 2);
-  context.fill();
-  return { tileSize, offsetX, offsetY };
+  if(options.drawCharacter!==false&&options.characterRenderer&&state.player.character){
+    options.characterRenderer.draw(context,playerX,playerY,tileSize*1.35,state.player.character,state.player.equipment,{direction:state.player.facing,moving:Boolean(options.moving),time:options.time??0,flash:options.flash??0});
+  }else if(options.drawCharacter!==false){
+    context.fillStyle = "#e6c17a";context.beginPath();context.arc(playerX,playerY,Math.max(3,tileSize*.36),0,Math.PI*2);context.fill();
+    context.fillStyle=GAME.player;context.beginPath();context.arc(playerX,playerY-tileSize*.04,Math.max(2,tileSize*.22),0,Math.PI*2);context.fill();
+  }
+  return { tileSize, offsetX, offsetY, playerX, playerY };
 }
 
 export function drawMinimap(context, state, pixelWidth, pixelHeight) {

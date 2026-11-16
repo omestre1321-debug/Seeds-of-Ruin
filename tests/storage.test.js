@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadProfile, saveProfile, PROFILE_STORAGE_KEY } from "../js/utils/storage.js";
+import { loadOptions, loadProfile, saveOptions, saveProfile, OPTIONS_STORAGE_KEY, PROFILE_STORAGE_KEY } from "../js/utils/storage.js";
 import { createCharacter } from "../js/core/character.js";
 
 function memoryStorage(initial={}) {
@@ -17,6 +17,14 @@ test("profile storage round-trips a sanitized progress record",()=>{
   assert.equal(saveProfile(profile,storage),true);
   assert.deepEqual(loadProfile(storage),profile);
   assert.ok(storage.getItem(PROFILE_STORAGE_KEY));
+});
+
+test("reduced-effects preference is saved and restored defensively",()=>{
+  const storage=memoryStorage();
+  assert.deepEqual(loadOptions(storage),{reducedEffects:false});
+  assert.equal(saveOptions({reducedEffects:true},storage),true);
+  assert.deepEqual(loadOptions(storage),{reducedEffects:true});
+  assert.ok(storage.getItem(OPTIONS_STORAGE_KEY));
 });
 
 test("unavailable or corrupt localStorage safely falls back to a fresh profile",()=>{

@@ -1,8 +1,9 @@
 import { addToInventory, removeFromInventory, INVENTORY_CAPACITY } from "./inventory.js";
 import { getRarity } from "./rarity.js";
 
-export function makeItemDrop(item, x, y, source = "enemy") {
-  return { id: `ground-${item.id}-${x}-${y}`, kind: "item", item: { ...item }, x, y, source, collected: false, blockedNotified: false };
+export function makeItemDrop(item, x, y, source = "enemy", stableId) {
+  const entityId=stableId??`floor-drop:${source}:${item.id}:${x},${y}`;
+  return {entityId,id:entityId,version:1,kind:"item",item:{...item},x,y,position:{x,y},source,ownerId:null,collected:false,blockedNotified:false};
 }
 
 export function createEnemyItemDrop(enemy, rng, createLoot, floor) {
@@ -38,10 +39,10 @@ export function collectDropsAt(drops, player, x, y, capacity = INVENTORY_CAPACIT
   return { collected, messages };
 }
 
-export function discardInventoryItem(player, itemId, x, y, drops) {
+export function discardInventoryItem(player, itemId, x, y, drops, stableId) {
   const removed = removeFromInventory(player, itemId, 1);
   if (!removed.ok) return removed;
-  const drop = makeItemDrop(removed.item, x, y, "discarded");
+  const drop = makeItemDrop(removed.item, x, y, "discarded", stableId);
   drops.push(drop);
   return { ok: true, drop, item: removed.item };
 }

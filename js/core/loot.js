@@ -17,7 +17,7 @@ const ITEM_NAMES = Object.freeze({
 const PREFIXES = Object.freeze(["Hollow", "Sable", "Drowned", "Bright", "Forgotten", "Waking", "Old"]);
 const STAT_POOLS = Object.freeze({
   weapon: ["attack", "crit", "speed", "lifeSteal", "reach"],
-  armor: ["defense", "maxHp", "thorns", "lifeSteal"],
+  armor: ["defense", "maxHp", "thorns", "lifeSteal", "speed", "vision"],
   helmet: ["defense", "vision", "crit", "maxHp", "speed"],
   boots: ["speed", "defense", "vision", "crit", "maxHp"],
   ring: ["attack", "defense", "crit", "speed", "vision", "lifeSteal", "thorns", "maxHp", "reach"],

@@ -50,9 +50,44 @@
             </div>
             <p class="record-flavor">The walls keep every name. The city only remembers the ones that return.</p>
             <div class="mutator-legend"><span class="legend-dot"></span><span>Unlock mutators by surviving deeper.</span></div>
+            <label class="effects-toggle"><input id="reduced-effects" type="checkbox" /> <span>Reduced visual effects</span></label>
           </aside>
         </div>
         <p class="footer-note">ASHEN REACH <span>·</span> BUILT FROM SEEDS, STONE &amp; SOUND</p>
+      </section>
+
+      <section id="character-screen" class="screen is-hidden" aria-labelledby="character-screen-title">
+        <div class="character-create card">
+          <div class="card-heading"><div><p class="eyebrow">BEFORE THE DESCENT</p><h2 id="character-screen-title">Shape your delver</h2><p class="creation-seed">VAULT SEED · <strong id="creation-seed">ASH-001</strong></p></div><span class="card-index">03</span></div>
+          <form id="character-form">
+            <div class="character-create-grid">
+              <section class="character-preview-card" aria-label="Character preview">
+                <canvas id="character-preview" aria-label="Live character preview"></canvas>
+                <div id="character-name-preview" class="character-name-preview">Delver</div>
+                <div id="class-role-preview" class="class-role-preview">Vanguard</div>
+              </section>
+              <div class="character-fields">
+                <label class="field-label" for="character-name">NAME</label>
+                <input id="character-name" maxlength="18" autocomplete="off" />
+                <label class="field-label" for="class-select">CLASS</label>
+                <select id="class-select"></select>
+                <div id="class-summary" class="class-summary"></div>
+                <div class="appearance-grid">
+                  <label><span>SKIN</span><select id="appearance-skin"></select></label>
+                  <label><span>HAIR STYLE</span><select id="appearance-hairStyle"></select></label>
+                  <label><span>HAIR / HOOD COLOR</span><select id="appearance-hairColor"></select></label>
+                  <label><span>FACE</span><select id="appearance-faceStyle"></select></label>
+                  <label class="outfit-field"><span>OUTFIT COLOR</span><select id="appearance-outfitColor"></select></label>
+                </div>
+              </div>
+            </div>
+            <div class="creation-actions">
+              <button id="character-back" class="secondary-button" type="button">BACK</button>
+              <button id="character-random" class="secondary-button" type="button">RANDOMIZE</button>
+              <button class="primary-button" type="submit">CONFIRM &amp; DESCEND</button>
+            </div>
+          </form>
+        </div>
       </section>
 
       <section id="game-screen" class="screen is-hidden" aria-label="Dungeon run">
@@ -67,7 +102,7 @@
         <div class="game-layout">
           <section class="game-board card" aria-label="Dungeon map and movement">
             <div class="board-topline"><span id="floor-subtitle">THE CINDER VAULT</span><span id="turn-label">TURN 0</span></div>
-            <div class="game-canvas-frame"><canvas id="game-canvas" aria-label="Dungeon map"></canvas><div id="damage-layer" class="damage-layer" aria-hidden="true"></div></div>
+            <div class="game-canvas-frame"><canvas id="game-canvas" aria-label="Dungeon map"></canvas><canvas id="particle-canvas" class="particle-canvas" aria-hidden="true"></canvas><div id="damage-layer" class="damage-layer" aria-hidden="true"></div></div>
             <div class="board-bottomline"><span id="location-label">The stairwell exhales heat.</span><span id="visibility-label">FOG OF WAR</span></div>
             <div class="action-row">
               <button id="interact-button" class="secondary-button" type="button">INTERACT <kbd>E</kbd></button>
@@ -85,7 +120,7 @@
 
           <aside class="side-column">
             <section class="card status-card">
-              <div class="card-heading compact-heading"><div><p class="eyebrow">DELVER</p><h2>The Last Light</h2></div><span id="level-label" class="level-badge">LV 1</span></div>
+              <div class="card-heading compact-heading"><div><p class="eyebrow">DELVER</p><h2 id="player-title">The Last Light</h2><span id="player-class-label" class="player-class-label"></span></div><span id="level-label" class="level-badge">LV 1</span></div>
               <div class="health-row"><span>VITALITY</span><strong id="hp-label">32 / 32</strong></div>
               <div class="meter"><div id="hp-meter" class="meter__fill hp-fill"></div></div>
               <div class="resource-row"><span id="xp-label">0 / 18 XP</span><strong id="gold-label">◈ 8</strong></div>

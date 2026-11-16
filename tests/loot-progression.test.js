@@ -3,12 +3,17 @@ import assert from "node:assert/strict";
 import { createLoot } from "../js/core/loot.js";
 import { RARITIES } from "../js/items/rarity.js";
 import { addToInventory, inventoryCount } from "../js/items/inventory.js";
-import { collectDropsAt, makeItemDrop } from "../js/items/drops.js";
+import { collectDropsAt, createEnemyItemDrop, makeItemDrop } from "../js/items/drops.js";
 import { equipItem, equipmentBonuses, unequipItem } from "../js/items/equipment.js";
 import { recordRun, sanitizeProfile, selectMutator } from "../js/core/progression.js";
 import { Rng } from "../js/core/rng.js";
 
-test("seeded item generation repeats and rarity tiers add more attributes", () => {
+test("seeded item generation and enemy drops repeat from the same seed", () => {
+  const boss={type:"vault-warden",id:"warden-1"};
+  const firstDrop=createEnemyItemDrop(boss,new Rng("same-drop"),createLoot,4);
+  const secondDrop=createEnemyItemDrop(boss,new Rng("same-drop"),createLoot,4);
+  assert.deepEqual(firstDrop,secondDrop);
+  assert.equal(firstDrop.rarity,"rare");
   const first=createLoot(new Rng("loot-test"),3,{type:"weapon"});
   const second=createLoot(new Rng("loot-test"),3,{type:"weapon"});
   assert.deepEqual(first,second);
@@ -17,6 +22,11 @@ test("seeded item generation repeats and rarity tiers add more attributes", () =
   assert.ok(first.value>0);
   assert.equal(RARITIES.length,5);
   assert.deepEqual(RARITIES.map((rarity)=>rarity.attributes),[1,2,3,4,5]);
+  const stats=["attack","defense","maxHp","crit","speed","vision","lifeSteal","thorns","reach"];
+  for(const rarity of RARITIES){
+    const armor=createLoot(new Rng(`armor-${rarity.id}`),1,{type:"armor",rarity:rarity.id});
+    assert.equal(stats.filter((key)=>armor[key]!==0).length,rarity.attributes,`${rarity.id} attribute count`);
+  }
 });
 
 test("tonics and materials stack without consuming more inventory slots",()=>{

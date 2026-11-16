@@ -22,6 +22,25 @@ test("simulation core stays independent of DOM, Canvas, audio, and browser stora
   }
 });
 
+test("seed controls route through character creation into the run",()=>{
+  const main=readFileSync(new URL("../js/main.js",import.meta.url),"utf8");
+  assert.match(main,/openCharacterCreation\(ui\.menuSeed\.value\)/);
+  assert.match(main,/openCharacterCreation\(dailySeed\(\)\)/);
+  assert.match(main,/beginRun\(pendingSeed,readCharacterDraft\(\)\)/);
+  assert.match(main,/ui\.menuSeed\.value=randomWorldSeed\(\)/);
+});
+
+test("the HTML has unique IDs and every static JS ID selector exists",()=>{
+  const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
+  const main=readFileSync(new URL("../js/main.js",import.meta.url),"utf8");
+  const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map((match)=>match[1]);
+  assert.equal(new Set(ids).size,ids.length,"duplicate HTML id");
+  const available=new Set(ids);
+  const selectors=[...main.matchAll(/(?:\$|document\.querySelector)\("#([^"`]+)"\)/g)].map((match)=>match[1]);
+  for(const id of selectors)assert.ok(available.has(id),`main.js refers to missing #${id}`);
+  for(const suffix of ["skin","hairStyle","hairColor","faceStyle","outfitColor"])assert.ok(available.has(`appearance-${suffix}`));
+});
+
 test("the page references only local source files and contains no network assets",()=>{
   const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
   const css=readFileSync(new URL("../css/styles.css",import.meta.url),"utf8");

@@ -54,6 +54,13 @@ export function equipItem(player, itemId, requestedSlot, capacity = INVENTORY_CA
   return { ok: true, slot, previous: previous ?? null, equipped: incoming };
 }
 
+export function removeEquippedItem(player,slotId){
+  ensureSlots(player);
+  if(!EQUIPMENT_SLOTS.some((entry)=>entry.id===slotId)||!player.equipment[slotId])return {ok:false,reason:"empty-slot"};
+  const item=player.equipment[slotId];player.equipment[slotId]=null;
+  return {ok:true,item,slot:slotId};
+}
+
 export function unequipItem(player, slotId, capacity = INVENTORY_CAPACITY) {
   ensureSlots(player);
   const slot = EQUIPMENT_SLOTS.find((entry) => entry.id === slotId);

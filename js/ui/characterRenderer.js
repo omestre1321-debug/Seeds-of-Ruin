@@ -50,10 +50,12 @@ function drawPiece(context,piece,visual){
   context.shadowBlur=0;
 }
 
-function drawVisual(context,item){
+function drawVisual(context,item,offset={x:0,y:0}){
   if(!item)return;
   const visual=visualForItem(item);if(!visual)return;
+  context.save();context.translate(offset.x,offset.y);
   for(const piece of visual.pieces)drawPiece(context,piece,visual);
+  context.restore();
 }
 
 function drawBody(context,character){
@@ -112,7 +114,8 @@ function compose(context,character,equipment){
   drawVisual(context,equipment.boots);
   drawVisual(context,equipment.armor);
   if(equipment.helmet)drawVisual(context,equipment.helmet);else drawHair(context,character);
-  drawVisual(context,equipment.amulet);drawVisual(context,equipment.ring1);drawVisual(context,equipment.ring2);
+  drawVisual(context,equipment.amulet);
+  drawVisual(context,equipment.ring1,{x:-3,y:1});drawVisual(context,equipment.ring2,{x:3,y:1});
   drawVisual(context,equipment.weapon);
   return layers;
 }
@@ -134,7 +137,7 @@ export class CharacterRenderer{
     context.save();
     if(options.direction==="left"){context.translate(x*2,0);context.scale(-1,1);}
     context.drawImage(sprite,px,py,size,size);
-    if(options.flash>0){context.globalAlpha=Math.min(.72,options.flash);context.globalCompositeOperation="screen";context.fillStyle="#fff2df";context.fillRect(px,py,size,size);}
+    if(options.flash>0){context.globalAlpha=Math.min(.72,options.flash);context.filter="sepia(1) saturate(6) hue-rotate(-45deg)";context.drawImage(sprite,px,py,size,size);context.filter="none";}
     context.restore();
   }
   renderPreview(canvas,character,equipment={}){
