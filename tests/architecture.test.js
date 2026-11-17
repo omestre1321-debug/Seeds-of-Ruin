@@ -38,7 +38,7 @@ test("the HTML has unique IDs and every static JS ID selector exists",()=>{
   const available=new Set(ids);
   const selectors=[...main.matchAll(/(?:\$|document\.querySelector)\("#([^"`]+)"\)/g)].map((match)=>match[1]);
   for(const id of selectors)assert.ok(available.has(id),`main.js refers to missing #${id}`);
-  for(const suffix of ["skin","hairStyle","hairColor","faceStyle","outfitColor"])assert.ok(available.has(`appearance-${suffix}`));
+  for(const suffix of ["bodyVariant","skin","hairStyle","hairColor","faceStyle","outfitColor"])assert.ok(available.has(`appearance-${suffix}`));
 });
 
 test("the page references only local source files and contains no network assets",()=>{

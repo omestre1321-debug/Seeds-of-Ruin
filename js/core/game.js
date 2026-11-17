@@ -7,7 +7,7 @@ import { computeFov, mergeExplored } from "./fov.js";
 import { TILE } from "./map/tiles.js";
 import { Rng } from "./rng.js";
 import { createLoot } from "./loot.js";
-import { addToInventory, consumeTonic, INVENTORY_CAPACITY } from "../items/inventory.js";
+import { addToInventory, consumeConsumable, INVENTORY_CAPACITY } from "../items/inventory.js";
 import { collectDropsAt, createEnemyItemDrop, discardInventoryItem, makeItemDrop } from "../items/drops.js";
 import { equipItem, equipmentBonuses, removeEquippedItem, unequipItem } from "../items/equipment.js";
 import { getMutator } from "./mutators.js";
@@ -80,7 +80,7 @@ export function createGame(seed, profileValue = {}, options = {}) {
     xp: 0,
     gold: mutator.startingGold ?? 8,
     inventory: [{ id: "starter-tonic", name: "Common Warmth Tonic", type: "tonic", slot: "consumable", rarity: "common", color: "#b9c2b8", floor: 1, value: 0, stackable: true, quantity: 1, attack: 0, defense: 0, maxHp: 0, crit: 0, speed: 0, vision: 0, lifeSteal: 0, thorns: 0, reach: 0, heal: 12 }],
-    equipment: { weapon: { ...character.startingWeapon }, armor: null, helmet: null, boots: null, ring1: null, ring2: null, amulet: null },
+    equipment: { weapon: { ...character.startingWeapon }, shield:null, armor: null, gloves:null, helmet: null, boots: null, ring1: null, ring2: null, amulet: null },
     bonusScore: 0,
   };
   recalculatePlayer(player);
@@ -212,6 +212,7 @@ function enemyTurn(state) {
     const action = chooseEnemyAction(state, enemy, state.rng);
     if (action.type === "attack") enemyAttack(state, enemy);
     else if (action.type === "move") {
+      enemy.facing=action.x<enemy.x?"left":"right";
       enemy.x = action.x;
       enemy.y = action.y;
       if (action.behavior === "flee") pushLog(state, `${enemy.name} retreats into the dark.`, "warning");
@@ -406,9 +407,10 @@ export function performAction(state, intent) {
 }
 
 function useItem(state, itemId) {
-  const result = consumeTonic(state.player, itemId);
+  const result = consumeConsumable(state.player, itemId);
   if (!result.ok) return { ...result, consumedTurn: false };
-  pushLog(state, `You recover ${result.healed} HP.`, "good");
+  if(result.healed>0)pushLog(state, `You recover ${result.healed} HP.`, "good");
+  if(result.experience>0){gainExperience(state,result.experience);pushLog(state,`The scroll grants ${result.experience} experience.`,"good");}
   processEnemyTurnsAfterAction(state, true);
   return { ...result, consumedTurn: true };
 }

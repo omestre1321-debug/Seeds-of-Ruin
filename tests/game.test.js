@@ -155,7 +155,7 @@ test("event choices apply only the selected outcome", () => {
 
 test("inventory and equipment survive a floor transition",()=>{
   const state=createGame("carry-run");
-  const gear={id:"carried-helm",name:"Carried Helm",slot:"helmet",type:"helmet",rarity:"rare",defense:2,visualId:"helmet-iron"};
+  const gear={id:"carried-helm",name:"Carried Helm",slot:"helmet",type:"helmet",rarity:"rare",defense:2,spriteCategory:"helmet"};
   state.player.inventory.push(gear);
   performAction(state,{type:"equip",itemId:gear.id});
   const weaponId=state.player.equipment.weapon.id;

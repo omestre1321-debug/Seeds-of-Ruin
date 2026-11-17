@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ashen Reach · Sprite Atlas Browser</title>
+  <style>
+    :root { color-scheme:dark; --bg:#111513; --panel:#1a211e; --line:#354139; --ink:#e8ece4; --muted:#98a69c; --teal:#8bd1b0; --amber:#e1ae65; --red:#e18170; font-family:system-ui,sans-serif; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:radial-gradient(ellipse at 50% -20%,#27362e,#111513 58%); }
+    header { position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--line); background:#111513ed; backdrop-filter:blur(8px); }
+    h1 { margin:0 auto 0 0; font-size:18px; letter-spacing:.04em; }
+    button,select,input { font:inherit; color:var(--ink); border:1px solid var(--line); border-radius:5px; background:#171e1b; padding:7px 9px; }
+    button { cursor:pointer; } button:hover { border-color:var(--teal); }
+    input[type=search] { width:min(270px,45vw); }
+    .status { flex:1 0 100%; color:var(--muted); font:12px ui-monospace,monospace; }
+    .warning { color:#f1be72; }
+    main { display:grid; grid-template-columns:minmax(300px,36vw) 1fr; min-height:calc(100vh - 88px); }
+    aside { position:sticky; top:91px; align-self:start; height:calc(100vh - 91px); overflow:auto; padding:14px; border-right:1px solid var(--line); }
+    .sheet-card { margin-bottom:14px; padding:10px; border:1px solid var(--line); border-radius:7px; background:#171e1be8; }
+    .sheet-title { display:flex; justify-content:space-between; gap:8px; margin:0 0 7px; font:12px ui-monospace,monospace; }
+    .sheet-title span { color:var(--muted); }
+    .sheet-scroll { overflow:auto; max-height:53vh; background-color:#777; background-image:linear-gradient(45deg,#999 25%,transparent 25%),linear-gradient(-45deg,#999 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#999 75%),linear-gradient(-45deg,transparent 75%,#999 75%); background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; }
+    .sheet-view { display:block; max-width:none; height:auto; image-rendering:pixelated; }
+    .legend { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; color:var(--muted); font-size:11px; }
+    .legend b { color:var(--amber); }
+    #sprites { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); align-content:start; gap:9px; padding:12px; }
+    .sprite { min-width:0; padding:9px; border:1px solid var(--line); border-radius:7px; background:#19211d; }
+    .sprite.review { border-color:#957244; box-shadow:inset 3px 0 #d5a050; }
+    .sprite.hidden { opacity:.38; }
+    .sprite-head { display:flex; justify-content:space-between; align-items:center; gap:6px; font:11px ui-monospace,monospace; }
+    .sprite-head strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .badge { flex:0 0 auto; color:var(--amber); }
+    .sprite-preview { display:grid; place-items:center; min-height:86px; margin:7px 0; overflow:hidden; background-color:#777; background-image:linear-gradient(45deg,#999 25%,transparent 25%),linear-gradient(-45deg,#999 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#999 75%),linear-gradient(-45deg,transparent 75%,#999 75%); background-size:12px 12px; background-position:0 0,0 6px,6px -6px,-6px 0; }
+    .sprite-preview canvas { max-width:100%; height:auto; image-rendering:pixelated; }
+    .field { display:grid; grid-template-columns:45px 1fr; align-items:center; gap:5px; margin:4px 0; color:var(--muted); font-size:10px; }
+    .field input,.field select { width:100%; min-width:0; padding:5px; font:11px ui-monospace,monospace; }
+    .coords { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; }
+    .sprite-actions { display:flex; gap:5px; margin-top:7px; }
+    .sprite-actions button { flex:1; padding:5px; font-size:10px; }
+    .sprite-actions .hide { color:var(--red); }
+    .empty { grid-column:1/-1; padding:35px; text-align:center; color:var(--muted); }
+    @media (max-width:860px) { main { grid-template-columns:1fr; } aside { position:static; height:auto; border-right:0; border-bottom:1px solid var(--line); } .sheet-scroll { max-height:38vh; } #sprites { grid-template-columns:repeat(auto-fill,minmax(185px,1fr)); } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Ashen Reach · Sprite Atlas Browser</h1>
+    <select id="sheet-filter" aria-label="Filter by sheet"><option value="">All sheets</option></select>
+    <select id="category-filter" aria-label="Filter by category"><option value="">All categories</option></select>
+    <select id="review-filter" aria-label="Review filter"><option value="">All boxes</option><option value="review">Needs review</option><option value="clean">No auto warning</option></select>
+    <input id="search" type="search" placeholder="Filter by id/name/category" />
+    <label><input id="overrides-file" type="file" accept="application/json,.json" hidden /> <button id="load-file" type="button">Load overrides</button></label>
+    <button id="save-file" type="button">Download overrides</button>
+    <div id="status" class="status">Loading atlas…</div>
+  </header>
+  <main>
+    <aside id="sheets" aria-label="Sprite sheet previews"></aside>
+    <section id="sprites" aria-live="polite"></section>
+  </main>
+  <script type="module">
+    const CATEGORY_SUGGESTIONS = ["weapon_sword","weapon_axe","weapon_mace","weapon_staff","weapon_bow","shield","helmet","chest_armor","boots","gloves","ring","amulet","potion","food","gem","key","book","herb","monster_rat","monster_wolf","monster_goblin","monster_orc","monster_spider","monster_bat","monster_elemental","monster_skeleton","monster_mummy","monster_bandit","monster_ghost","monster_slime","monster_reptile","player_body","effect_slash","effect_blood","effect_fire","effect_water","effect_magic","effect_heal","effect_emote","effect_status","effect_spark"];
+    const baseUrl = new URL("../", location.href);
+    const status = document.querySelector("#status");
+    const spritesRoot = document.querySelector("#sprites");
+    const sheetsRoot = document.querySelector("#sheets");
+    const sheetFilter = document.querySelector("#sheet-filter");
+    const categoryFilter = document.querySelector("#category-filter");
+    const reviewFilter = document.querySelector("#review-filter");
+    const search = document.querySelector("#search");
+    let atlas = null;
+    let images = {};
+    let overrides = { sprites: {}, add: [], removeIds: [] };
+
+    function escape(value) { return String(value).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+    function showStatus(text, warning = false) { status.textContent = text; status.className = `status${warning ? " warning" : ""}`; }
+    async function fetchJson(url) { const response = await fetch(url); if (!response.ok) throw new Error(`${response.status} ${response.statusText}`); return response.json(); }
+    function overrideFor(sprite) { return overrides.sprites?.[sprite.id] ?? {}; }
+    function effectiveSprite(sprite) { return { ...sprite, ...overrideFor(sprite), id: sprite.id }; }
+    function populateFilters() {
+      for (const id of Object.keys(atlas.sheets)) { const option = document.createElement("option"); option.value = id; option.textContent = id; sheetFilter.append(option); }
+      const cats = [...new Set([...CATEGORY_SUGGESTIONS, ...Object.keys(atlas.categories)])].sort();
+      for (const id of cats) { const option = document.createElement("option"); option.value = id; option.textContent = id; categoryFilter.append(option); }
+    }
+    function drawSheets() {
+      sheetsRoot.replaceChildren();
+      for (const [sheetId, metadata] of Object.entries(atlas.sheets)) {
+        const card = document.createElement("section"); card.className = "sheet-card"; card.id = `sheet-${sheetId}`;
+        const heading = document.createElement("p"); heading.className = "sheet-title"; heading.innerHTML = `<strong>${escape(sheetId)}</strong><span>${metadata.width}×${metadata.height} · source ${metadata.sourceSize.width}×${metadata.sourceSize.height} @${metadata.sourceScale}×</span>`; card.append(heading);
+        const scroll = document.createElement("div"); scroll.className = "sheet-scroll";
+        const canvas = document.createElement("canvas"); canvas.className = "sheet-view"; const scale = sheetId === "effects" ? 2 : 4;
+        canvas.width = metadata.width * scale; canvas.height = metadata.height * scale;
+        const context = canvas.getContext("2d"); context.imageSmoothingEnabled = false; context.drawImage(images[sheetId], 0, 0, canvas.width, canvas.height);
+        const matches = atlas.sprites.filter((sprite) => sprite.sheet === sheetId);
+        context.font = `bold ${Math.max(9, scale * 2)}px ui-monospace,monospace`; context.textBaseline = "top";
+        for (const [index, sprite] of matches.entries()) {
+          const current = effectiveSprite(sprite); const color = sprite.needsReview ? "#ffca70" : "#8ee0bb";
+          context.strokeStyle = color; context.lineWidth = Math.max(1, scale / 2); context.strokeRect(current.x * scale, current.y * scale, current.width * scale, current.height * scale);
+          context.fillStyle = "#101513"; context.fillRect(current.x * scale, current.y * scale, Math.max(14, scale * 5), Math.max(10, scale * 3));
+          context.fillStyle = color; context.fillText(String(index + 1), current.x * scale + 1, current.y * scale + 1);
+        }
+        scroll.append(canvas); card.append(scroll);
+        const legend = document.createElement("div"); legend.className = "legend"; legend.innerHTML = `<span><b>Amber</b> generated split/edge warning</span><span><b style="color:#8ee0bb">Green</b> auto box</span>`; card.append(legend);
+        sheetsRoot.append(card);
+      }
+    }
+    function drawThumb(canvas, sprite) {
+      const scale = sprite.sheet === "effects" ? 2 : 4;
+      canvas.width = Math.max(16, sprite.width) * scale; canvas.height = Math.max(16, sprite.height) * scale;
+      const context = canvas.getContext("2d"); context.imageSmoothingEnabled = false; context.clearRect(0,0,canvas.width,canvas.height);
+      const sheet = images[sprite.sheet];
+      context.drawImage(sheet, sprite.x, sprite.y, sprite.width, sprite.height, 0, 0, sprite.width * scale, sprite.height * scale);
+    }
+    function setOverride(sprite, patch) {
+      overrides.sprites ??= {};
+      overrides.sprites[sprite.id] = { ...(overrides.sprites[sprite.id] ?? {}), ...patch };
+      renderSprites(); drawSheets();
+    }
+    function renderSprites() {
+      if (!atlas) return;
+      const query = search.value.trim().toLowerCase();
+      const visible = atlas.sprites.filter((raw) => {
+        const sprite = effectiveSprite(raw);
+        if (sheetFilter.value && sprite.sheet !== sheetFilter.value) return false;
+        if (categoryFilter.value && sprite.category !== categoryFilter.value) return false;
+        if (reviewFilter.value === "review" && !raw.needsReview) return false;
+        if (reviewFilter.value === "clean" && raw.needsReview) return false;
+        const text = `${sprite.id} ${sprite.name ?? ""} ${sprite.category}`.toLowerCase(); return !query || text.includes(query);
+      });
+      spritesRoot.replaceChildren();
+      if (!visible.length) { spritesRoot.innerHTML = `<div class="empty">No sprites match this filter.</div>`; return; }
+      const fragment = document.createDocumentFragment();
+      for (const [index, raw] of visible.entries()) {
+        const sprite = effectiveSprite(raw); const card = document.createElement("article"); card.className = `sprite${raw.needsReview ? " review" : ""}${overrides.removeIds?.includes(raw.id) ? " hidden" : ""}`;
+        const heading = document.createElement("div"); heading.className = "sprite-head"; heading.innerHTML = `<strong>${index + 1}. ${escape(sprite.id)}</strong><span class="badge">${raw.needsReview ? "REVIEW" : "AUTO"}</span>`; card.append(heading);
+        const preview = document.createElement("div"); preview.className = "sprite-preview"; const canvas = document.createElement("canvas"); drawThumb(canvas, sprite); preview.append(canvas); card.append(preview);
+        const name = document.createElement("label"); name.className = "field"; name.innerHTML = `<span>Name</span>`; const nameInput = document.createElement("input"); nameInput.value = sprite.name ?? ""; nameInput.placeholder = sprite.id; nameInput.addEventListener("change", () => setOverride(raw, { name: nameInput.value.trim() })); name.append(nameInput); card.append(name);
+        const category = document.createElement("label"); category.className = "field"; category.innerHTML = `<span>Category</span>`; const select = document.createElement("select");
+        for (const optionValue of [...new Set([sprite.category, ...CATEGORY_SUGGESTIONS, ...Object.keys(atlas.categories)])].sort()) { const option = document.createElement("option"); option.value = optionValue; option.textContent = optionValue; select.append(option); }
+        select.value = sprite.category; select.addEventListener("change", () => setOverride(raw, { category: select.value })); category.append(select); card.append(category);
+        const coords = document.createElement("div"); coords.className = "coords";
+        for (const field of ["x","y","width","height"]) { const input = document.createElement("input"); input.type = "number"; input.min = field === "width" || field === "height" ? "1" : "0"; input.value = sprite[field]; input.title = field; input.setAttribute("aria-label", `${sprite.id} ${field}`); input.addEventListener("change", () => setOverride(raw, { [field]: Math.max(field === "width" || field === "height" ? 1 : 0, Math.floor(Number(input.value) || 0)) })); coords.append(input); }
+        card.append(coords);
+        const actions = document.createElement("div"); actions.className = "sprite-actions"; const locate = document.createElement("button"); locate.textContent = "Locate sheet"; locate.addEventListener("click", () => { sheetFilter.value = sprite.sheet; drawSheets(); document.querySelector(`#sheet-${CSS.escape(sprite.sheet)}`)?.scrollIntoView({ behavior:"smooth",block:"start" }); });
+        const hide = document.createElement("button"); hide.className = "hide"; hide.textContent = overrides.removeIds?.includes(raw.id) ? "Restore" : "Hide"; hide.addEventListener("click", () => { overrides.removeIds ??= []; overrides.removeIds = overrides.removeIds.includes(raw.id) ? overrides.removeIds.filter((id) => id !== raw.id) : [...overrides.removeIds, raw.id]; renderSprites(); });
+        actions.append(locate,hide); card.append(actions); fragment.append(card);
+      }
+      spritesRoot.append(fragment);
+      showStatus(`${visible.length} of ${atlas.sprites.length} sprites · ${atlas.warnings.length} auto boxes flagged for review · ${Object.keys(overrides.sprites ?? {}).length} overrides loaded.`, atlas.warnings.length > 0);
+    }
+    function downloadOverrides() {
+      const blob = new Blob([`${JSON.stringify(overrides, null, 2)}\n`], { type:"application/json" }); const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob); link.download = "atlas-overrides.json"; link.click(); URL.revokeObjectURL(link.href);
+    }
+    document.querySelector("#load-file").addEventListener("click", () => document.querySelector("#overrides-file").click());
+    document.querySelector("#overrides-file").addEventListener("change", async (event) => {
+      const file = event.target.files?.[0]; if (!file) return;
+      try { overrides = { sprites:{}, add:[], removeIds:[], ...JSON.parse(await file.text()) }; renderSprites(); drawSheets(); }
+      catch (error) { showStatus(`Override JSON error: ${error.message}`, true); }
+    });
+    document.querySelector("#save-file").addEventListener("click", downloadOverrides);
+    for (const control of [sheetFilter,categoryFilter,reviewFilter]) control.addEventListener("change",renderSprites);
+    search.addEventListener("input",renderSprites);
+    try {
+      atlas = await fetchJson(new URL("assets/atlas.json", baseUrl));
+      for (const [id, meta] of Object.entries(atlas.sheets)) { const image = new Image(); image.src = new URL(meta.file, baseUrl); await image.decode(); images[id] = image; }
+      try { overrides = { ...overrides, ...await fetchJson(new URL("assets/atlas-overrides.json", baseUrl)) }; } catch { /* file may be added after this page is built */ }
+      populateFilters(); drawSheets(); renderSprites();
+    } catch (error) { showStatus(`Atlas load failed: ${error.message}. Serve the project over HTTP.`, true); }
+  </script>
+</body>
+</html>

@@ -7,7 +7,7 @@ export function isStackable(item) {
 export function stackKey(item) {
   if (!isStackable(item)) return null;
   if (item.slot === "material") return `material:${item.materialId ?? item.name}:${item.rarity ?? "common"}`;
-  return `${item.type}:${item.rarity}:${item.heal ?? 0}:${item.effectId ?? ""}`;
+  return `${item.type}:${item.rarity}:${item.heal ?? 0}:${item.experience ?? 0}:${item.effectId ?? ""}`;
 }
 
 export function addToInventory(player, item, capacity = INVENTORY_CAPACITY) {
@@ -41,18 +41,20 @@ export function removeFromInventory(player, itemId, amount = 1) {
   return { ok: true, item: drop, remaining: quantity - removed };
 }
 
-export function consumeTonic(player,itemId) {
+export function consumeConsumable(player,itemId) {
   const index=player.inventory?.findIndex((entry)=>entry.id===itemId)??-1;
   if(index<0)return {ok:false,reason:"missing"};
   const item=player.inventory[index];
-  if(item.slot!=="consumable"||item.heal<=0)return {ok:false,reason:"not-consumable"};
-  const healed=Math.min(player.maxHp-player.hp,item.heal);
-  if(healed<=0)return {ok:false,reason:"already-healthy"};
+  if(item.slot!=="consumable"||(!(item.heal>0)&&!(item.experience>0)))return {ok:false,reason:"not-consumable"};
+  const healed=Math.min(player.maxHp-player.hp,item.heal??0);
+  if(healed<=0&&!(item.experience>0))return {ok:false,reason:"already-healthy"};
   player.hp+=healed;
   const quantity=Math.max(1,Math.floor(item.quantity??1));
   if(quantity>1)item.quantity=quantity-1;else player.inventory.splice(index,1);
-  return {ok:true,healed,remaining:quantity-1};
+  return {ok:true,healed,experience:Math.max(0,Math.floor(item.experience??0)),remaining:quantity-1};
 }
+
+export const consumeTonic=consumeConsumable;
 
 export function inventoryCount(player) {
   return Array.isArray(player.inventory) ? player.inventory.length : 0;

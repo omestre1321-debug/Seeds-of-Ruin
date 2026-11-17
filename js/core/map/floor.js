@@ -4,6 +4,8 @@ import { applyEnemyMutator } from "../mutators.js";
 import { generateDungeon } from "./bsp.js";
 import { generateBiomeLayout } from "./biome-layout.js";
 import { TILE } from "./tiles.js";
+import { biomeForFloor } from "../../data/biomes.js";
+import { MONSTERS, MONSTERS_BY_BIOME } from "../../data/monsters.js";
 
 function positionKey(position) {
   return `${position.x},${position.y}`;
@@ -24,12 +26,9 @@ function placeFeature(map, room, type, data = {}) {
   return { id: `${type}-${position.x}-${position.y}`, type, ...position, ...data };
 }
 
-function chooseEnemyType(rng, floor, isFinal) {
-  if (isFinal && rng.chance(0.12)) return ENEMY_TYPES.WRAITH;
-  const roll = rng.next();
-  if (roll < 0.34) return ENEMY_TYPES.SENTRY;
-  if (roll < 0.68) return ENEMY_TYPES.WOLF;
-  return ENEMY_TYPES.WRAITH;
+function chooseEnemyType(rng,floor,biomeId){
+  const available=(MONSTERS_BY_BIOME[biomeId]??MONSTERS_BY_BIOME.stone).filter((id)=>(MONSTERS[id]?.floorMin??1)<=floor);
+  return rng.pick(available.length?available:MONSTERS_BY_BIOME.stone);
 }
 
 function roomSpawnCells(map, room, reserved) {
@@ -55,6 +54,7 @@ export function generateFloor(runSeed, floorNumber, maxFloors = 4, options = {})
   const candidates = roomCandidates(map);
   const featureRooms = [...candidates];
   const isFinal = floorNumber === maxFloors;
+  const primaryBiome=biomeForFloor(floorNumber);
 
   if (featureRooms.length > 0) features.push(placeFeature(map, featureRooms.shift(), "shop", { stockSeed: rng.nextUint32() }));
   if (featureRooms.length > 0) features.push(placeFeature(map, featureRooms.shift(), "treasure", { gold: 10 + floorNumber * 7, guaranteedTonic: floorNumber === 1 }));
@@ -77,8 +77,9 @@ export function generateFloor(runSeed, floorNumber, maxFloors = 4, options = {})
     if (cells.length === 0) continue;
     const position = spawnRng.pick(cells);
     reserved.add(positionKey(position));
-    const type = chooseEnemyType(spawnRng, floorNumber, isFinal);
-    const enemy = createEnemy(type, `f${floorNumber}-e${index}`, position, floorNumber, room);
+    const type = chooseEnemyType(spawnRng,floorNumber,primaryBiome);
+    const elite=floorNumber>=2&&spawnRng.chance(.11);
+    const enemy = createEnemy(type, `f${floorNumber}-e${index}`, position, floorNumber, room,{elite,spawnBiome:primaryBiome});
     applyEnemyMutator(enemy, options.mutator ?? {});
     enemies.push(enemy);
   }

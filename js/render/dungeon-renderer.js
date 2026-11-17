@@ -1,6 +1,8 @@
 import { BIOMES } from "../data/biomes.js";
 import { TILE } from "../core/map/tiles.js";
 import { drawBiomeStatic } from "./biome-renderer.js";
+import { spriteIdForItem } from "./sprite-atlas.js";
+import { drawMonsterSprite } from "./monster-renderer.js";
 
 const GAME = Object.freeze({
   hidden: "#080a0d", player: "#f2e3c0", sentry: "#c88757", wolf: "#cc6c55",
@@ -95,22 +97,18 @@ export function drawGame(context, state, pixelWidth, pixelHeight, options = {}) 
     const y = offsetY + (drop.y + 0.5) * tileSize;
     const color = drop.item?.color ?? biome.palette.accent;
     context.save(); context.shadowColor = color; context.shadowBlur = 4 + (drop.item?.rarityGlow ?? 0.3) * 7;
-    marker(context, "✦", x, y, tileSize, color); context.restore();
+    if(options.spriteAtlas){
+      const spriteId=spriteIdForItem(options.spriteAtlas.atlas,drop.item);const sprite=options.spriteAtlas.getSprite(spriteId);
+      const width=sprite?.width??12;const height=sprite?.height??12;
+      options.spriteAtlas.draw(context,spriteId,x-width/2,y-height/2,{scale:1});
+    }else marker(context,"?",x,y,tileSize,color);
+    context.restore();
   }
-  for (const enemy of state.enemies ?? []) {
-    if (!enemy.alive || state.visible?.[enemy.y * map.width + enemy.x] !== 1) continue;
-    const color = enemy.type === "ashen-sentry" ? GAME.sentry : enemy.type === "ember-wolf" ? GAME.wolf : enemy.type === "vault-warden" ? GAME.bossEnemy : GAME.wraith;
-    const px = offsetX + (enemy.x + 0.5) * tileSize;
-    const py = offsetY + (enemy.y + 0.5) * tileSize;
-    context.fillStyle = "#101316";
-    context.fillRect(px - tileSize * 0.34, py - tileSize * 0.36, tileSize * 0.68, tileSize * 0.72);
-    marker(context, enemy.type === "vault-warden" ? "W" : enemy.type === "ember-wolf" ? "w" : enemy.type === "mourning-wraith" ? "~" : "s", px, py, tileSize, color);
-    if (tileSize >= 8) {
-      context.fillStyle = "#100f11";
-      context.fillRect(px - tileSize * 0.35, py + tileSize * 0.35, tileSize * 0.7, Math.max(2, tileSize * 0.11));
-      context.fillStyle = "#e37562";
-      context.fillRect(px - tileSize * 0.35, py + tileSize * 0.35, tileSize * 0.7 * Math.max(0, enemy.hp / enemy.maxHp), Math.max(2, tileSize * 0.11));
-    }
+  if(options.drawEnemies!==false)for(const enemy of state.enemies??[]){
+    if(!enemy.alive||state.visible?.[enemy.y*map.width+enemy.x]!==1)continue;
+    const point={x:offsetX+(enemy.x+.5)*tileSize,y:offsetY+(enemy.y+.5)*tileSize};
+    if(options.spriteAtlas)drawMonsterSprite(context,enemy,point,tileSize,options.spriteAtlas,{time:options.time??0,reducedEffects:true});
+    else marker(context,"?",point.x,point.y,tileSize,"#f0b66c");
   }
 
   const playerX = offsetX + (state.player.x + 0.5) * tileSize;

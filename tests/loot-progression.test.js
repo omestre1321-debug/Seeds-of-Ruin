@@ -2,11 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createLoot } from "../js/core/loot.js";
 import { RARITIES } from "../js/items/rarity.js";
-import { addToInventory, inventoryCount } from "../js/items/inventory.js";
+import { addToInventory, inventoryCount, consumeTonic } from "../js/items/inventory.js";
 import { collectDropsAt, createEnemyItemDrop, makeItemDrop } from "../js/items/drops.js";
 import { equipItem, equipmentBonuses, unequipItem } from "../js/items/equipment.js";
 import { recordRun, sanitizeProfile, selectMutator } from "../js/core/progression.js";
 import { Rng } from "../js/core/rng.js";
+import { spriteIdForItem } from "../js/render/sprite-atlas.js";
 
 test("seeded item generation and enemy drops repeat from the same seed", () => {
   const boss={type:"vault-warden",id:"warden-1"};
@@ -29,6 +30,21 @@ test("seeded item generation and enemy drops repeat from the same seed", () => {
   }
 });
 
+test("every supported loot type selects a sprite category present in the atlas",async()=>{
+  const {readFile}=await import("node:fs/promises");
+  const atlas=JSON.parse(await readFile(new URL("../assets/atlas.json",import.meta.url),"utf8"));
+  const types=["weapon","shield","gloves","armor","helmet","boots","ring","amulet","tonic","food","scroll","key","gem","herb","material"];
+  for(const type of types){
+    const item=createLoot(new Rng(`sprite-loot:${type}`),3,{type});
+    assert.ok(item.spriteCategory,`${type} has spriteCategory`);
+    assert.ok(atlas.categories[item.spriteCategory]?.length,`${type} → ${item.spriteCategory} has atlas sprites`);
+    assert.ok(atlas.sprites.some((sprite)=>sprite.id===spriteIdForItem(atlas,item)),`${type} resolves to a valid atlas id`);
+    assert.ok(item.stackable===(type==="tonic"||type==="food"||type==="scroll"||type==="key"||type==="gem"||type==="herb"||type==="material"));
+  }
+  const categories=new Set(Array.from({length:40},(_,index)=>createLoot(new Rng(`weapon-categories:${index}`),1,{type:"weapon"}).spriteCategory));
+  assert.ok(categories.has("weapon_sword"));assert.ok(categories.has("weapon_axe"));assert.ok(categories.has("weapon_staff"));
+});
+
 test("tonics and materials stack without consuming more inventory slots",()=>{
   const player={inventory:[]};
   const tonic={id:"tonic-a",name:"Warmth Tonic",type:"tonic",slot:"consumable",rarity:"rare",heal:18,stackable:true,quantity:1};
@@ -40,6 +56,15 @@ test("tonics and materials stack without consuming more inventory slots",()=>{
   addToInventory(player,shard);addToInventory(player,{...shard,id:"shard-2",quantity:4});
   assert.equal(inventoryCount(player),2);
   assert.equal(player.inventory[1].quantity,5);
+});
+
+test("food heals and scroll consumables grant deterministic experience",()=>{
+  const food=createLoot(new Rng("food-use"),2,{type:"food",rarity:"common"});
+  const scroll=createLoot(new Rng("scroll-use"),2,{type:"scroll",rarity:"rare"});
+  const player={hp:10,maxHp:20,xp:0,level:1,inventory:[food,scroll]};
+  const healed=consumeTonic(player,food.id);
+  assert.equal(healed.ok,true);assert.ok(healed.healed>0);assert.equal(player.hp,10+healed.healed);
+  assert.ok(scroll.experience>0);assert.equal(scroll.slot,"consumable");
 });
 
 test("walking over a drop collects without a separate turn; full pack leaves it on the floor",()=>{
@@ -87,6 +112,14 @@ test("a full pack blocks swapping so the equipped piece cannot be lost",()=>{
   assert.equal(player.equipment.weapon,previous);
   assert.equal(player.inventory[0],incoming);
   assert.equal(player.inventory.some((item)=>item.id==="old"),false);
+});
+
+test("shield is a separate off-hand equipment slot and contributes defense",()=>{
+  const shield=createLoot(new Rng("offhand-shield"),2,{type:"shield",rarity:"rare"});shield.defense=4;
+  const player={inventory:[shield],equipment:{weapon:null,shield:null,armor:null,helmet:null,boots:null,ring1:null,ring2:null,amulet:null}};
+  const result=equipItem(player,shield.id,"shield");
+  assert.equal(result.ok,true);assert.equal(player.equipment.shield.id,shield.id);assert.equal(equipmentBonuses(player).defense,4);
+  assert.equal(unequipItem(player,"shield").ok,true);assert.equal(player.equipment.shield,null);
 });
 
 test("both ring slots can be filled and stats sum across them",()=>{

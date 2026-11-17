@@ -7,7 +7,7 @@ test("character layer descriptors change on gear/look and restore after removal"
   const character=createCharacter({name:"Morrow",classId:"wayfinder",appearance:{skin:"umber",hairStyle:"braided",hairColor:"silver",faceStyle:"scarred",outfitColor:"deepTeal"}});
   const base={weapon:character.startingWeapon,armor:null,helmet:null,boots:null,ring1:null,ring2:null,amulet:null};
   const before=buildCharacterLayers(character,base);
-  const equipped={...base,helmet:{id:"helm",slot:"helmet",visualId:"helmet-iron",rarity:"rare"},armor:{id:"plate",slot:"armor",visualId:"armor-iron",rarity:"rare"}};
+  const equipped={...base,helmet:{id:"helm",slot:"helmet",spriteCategory:"helmet-iron",rarity:"rare"},armor:{id:"plate",slot:"armor",spriteCategory:"armor-iron",rarity:"rare"}};
   const after=buildCharacterLayers(character,equipped);
   assert.notDeepEqual(after,before);
   assert.equal(after.find((layer)=>layer.id==="head").source,"helmet-iron");
@@ -25,7 +25,7 @@ test("layer compositor caches unchanged looks and recomposes after equipment cha
     const scene=makeContext();renderer.draw(scene,40,40,36,character,equipment,{direction:"right",time:0});
     renderer.draw(scene,40,40,36,character,equipment,{direction:"left",time:100});
     assert.equal(renderer.recomposeCount,1);
-    renderer.draw(scene,40,40,36,character,{...equipment,armor:{id:"plate",slot:"armor",visualId:"armor-iron",rarity:"rare"}},{direction:"right",time:200});
+    renderer.draw(scene,40,40,36,character,{...equipment,armor:{id:"plate",slot:"armor",spriteCategory:"armor-iron",rarity:"rare"}},{direction:"right",time:200});
     assert.equal(renderer.recomposeCount,2);
   }finally{if(previous===undefined)delete globalThis.OffscreenCanvas;else globalThis.OffscreenCanvas=previous;}
 });

@@ -9,6 +9,9 @@ import { randomWorldSeed } from "./utils/seed-input.js";
 import { drawGame, drawMinimap, screenToTile } from "./render/dungeon-renderer.js";
 import { drawBiomeOverlay } from "./render/biome-renderer.js";
 import { BIOMES } from "./data/biomes.js";
+import { createSpriteAtlas, spriteIdForItem } from "./render/sprite-atlas.js";
+import { MonsterRenderer } from "./render/monster-renderer.js";
+import { SpriteEffectRenderer } from "./render/sprite-effects.js";
 import { EQUIPMENT_SLOTS, compareWithEquipped } from "./items/equipment.js";
 import { INVENTORY_CAPACITY, isStackable } from "./items/inventory.js";
 import { getRarity } from "./items/rarity.js";
@@ -19,7 +22,10 @@ import { CharacterRenderer } from "./ui/characterRenderer.js";
 import { ParticleSystem } from "./ui/particles.js";
 
 const $ = (selector) => document.querySelector(selector);
-const characterRenderer=new CharacterRenderer({cacheLimit:64});
+const spriteAtlas=createSpriteAtlas();
+const characterRenderer=new CharacterRenderer({cacheLimit:64,spriteAtlas});
+const monsterRenderer=new MonsterRenderer({spriteAtlas});
+const spriteEffects=new SpriteEffectRenderer({spriteAtlas,maxEffects:120});
 const ui = {
   menu: $("#menu-screen"), character: $("#character-screen"), game: $("#game-screen"), end: $("#end-screen"),
   menuSeed: $("#seed-input"), mutator: $("#mutator-select"), startForm: $("#start-form"),
@@ -48,6 +54,7 @@ let lastLogLength = 0;
 let pendingSeed="ASH-001";
 let walkingUntil=0;
 let flashUntil=0;
+let attackStarted=-Infinity;
 let selectedInventoryId=null;
 let selectedRingSlot="ring1";
 let inventoryNotice="";
@@ -98,7 +105,7 @@ function populateCharacterChoices(){
 }
 function readCharacterDraft(){
   return createCharacter({name:ui.characterName.value,classId:ui.classSelect.value,appearance:{
-    skin:$("#appearance-skin").value,hairStyle:$("#appearance-hairStyle").value,hairColor:$("#appearance-hairColor").value,
+    bodyVariant:$("#appearance-bodyVariant").value,skin:$("#appearance-skin").value,hairStyle:$("#appearance-hairStyle").value,hairColor:$("#appearance-hairColor").value,
     faceStyle:$("#appearance-faceStyle").value,outfitColor:$("#appearance-outfitColor").value,
   }});
 }
@@ -123,7 +130,7 @@ function openCharacterCreation(seedValue){
   const saved=createCharacter(profile.defaultCharacter);
   const suggested=profile.runs===0&&saved.name==="Delver"?randomCharacter(new Rng(`suggested-look:${randomWorldSeed()}`)):saved;
   ui.characterName.value=suggested.name;ui.classSelect.value=suggested.classId;
-  for(const key of ["skin","hairStyle","hairColor","faceStyle","outfitColor"])fillAppearanceSelect(key,APPEARANCE_OPTIONS[key],suggested.appearance[key]);
+  for(const key of ["bodyVariant","skin","hairStyle","hairColor","faceStyle","outfitColor"])fillAppearanceSelect(key,APPEARANCE_OPTIONS[key],suggested.appearance[key]);
   showScreen("character");renderCharacterDraft();
 }
 
@@ -136,6 +143,8 @@ function beginRun(seedValue,characterValue=profile.defaultCharacter) {
   game = createGame(seed, profile, { maxFloors: 4, mutator: profile.selectedMutator, character });
   visualRng.state=new Rng(`${game.seed}::visual-fx`).state;
   particles.clear();
+  monsterRenderer.clear();
+  spriteEffects.clear();
   modalMode = null;
   lastLogLength = 0;
   showScreen("game");
@@ -173,6 +182,12 @@ function emitAtTile(preset,x,y,options={}){
   return particles.emit(preset,point.x,point.y,{...options,worldBound:true,tileX:x,tileY:y});
 }
 
+function emitSpriteEffectAtTile(name,x,y,rotation=0){
+  if(!game||!lastLayout||x<0||y<0||x>=game.map.width||y>=game.map.height||game.visible[y*game.map.width+x]!==1)return false;
+  const point=tileScreenPoint(x,y);if(!point)return false;
+  return spriteEffects.emit(name,{...point,tileX:x,tileY:y,rotation},performance.now());
+}
+
 function currentTileLabel() {
   const feature = game.features.find((entry) => !entry.used && entry.x === game.player.x && entry.y === game.player.y);
   if (feature?.type === "shop") return "A trader tends a small blue flame. Press E to browse.";
@@ -199,7 +214,7 @@ function renderGame() {
   if (!game) return;
   resizeCanvas(ui.gameCanvas);
   const context = ui.gameCanvas.getContext("2d", { alpha: false });
-  lastLayout=drawGame(context,game,ui.gameCanvas.width,ui.gameCanvas.height,{drawCharacter:false});
+  lastLayout=drawGame(context,game,ui.gameCanvas.width,ui.gameCanvas.height,{drawCharacter:false,drawEnemies:false,spriteAtlas});
   resizeCanvas(ui.particleCanvas);
   resizeCanvas(ui.minimap);
   drawMinimap(ui.minimap.getContext("2d", { alpha: false }), game, ui.minimap.width, ui.minimap.height);
@@ -242,7 +257,7 @@ function closeModal() {
 }
 
 function itemStatLabels(item){
-  return [["attack","ATK"],["defense","DEF"],["maxHp","MAX HP"],["crit","CRIT"],["speed","DODGE"],["vision","VISION"],["lifeSteal","LIFESTEAL"],["thorns","THORNS"],["reach","REACH"],["heal","HEAL"]]
+  return [["attack","ATK"],["defense","DEF"],["maxHp","MAX HP"],["crit","CRIT"],["speed","DODGE"],["vision","VISION"],["lifeSteal","LIFESTEAL"],["thorns","THORNS"],["reach","REACH"],["heal","HEAL"],["experience","XP"]]
     .filter(([stat])=>Number(item[stat]??0)!==0)
     .map(([stat,label])=>`${label} +${["crit","speed","lifeSteal"].includes(stat)?`${Math.round(item[stat]*100)}%`:item[stat]}`);
 }
@@ -250,9 +265,21 @@ function itemStatLabels(item){
 function itemTooltip(item){
   const rarity=getRarity(item.rarity);
   const targetSlot=item.slot==="ring"?selectedRingSlot:item.slot;
-  const comparison=["weapon","armor","helmet","boots","ring","amulet"].includes(item.slot)?compareWithEquipped(game.player,item,targetSlot):null;
+  const comparison=["weapon","shield","armor","gloves","helmet","boots","ring","amulet"].includes(item.slot)?compareWithEquipped(game.player,item,targetSlot):null;
   const changes=comparison?.current?comparison.changes.map((change)=>`${change.delta>0?"+":""}${change.delta} ${change.stat}`).join(", "):"no equipped comparison";
   return `${item.name} · ${rarity.labelPt} · ${item.slot}\n${itemStatLabels(item).join(" · ")||"No direct stat bonus"}\n${changes}${item.quantity>1?`\nQuantity: ${item.quantity}`:""}`;
+}
+
+function itemSpriteCanvas(item,size=36,requestedScale=2){
+  const canvas=document.createElement("canvas");canvas.className="item-sprite";canvas.width=size;canvas.height=size;canvas.setAttribute("aria-hidden","true");
+  const context=canvas.getContext("2d");context.clearRect(0,0,size,size);context.imageSmoothingEnabled=false;
+  const id=spriteIdForItem(spriteAtlas.atlas,item);const sprite=id?spriteAtlas.getSprite(id):null;
+  if(!spriteAtlas.atlas){spriteAtlas.drawPlaceholder(context,(size-24)/2,(size-24)/2,24,24);return canvas;}
+  const baseWidth=sprite?.width??16;const baseHeight=sprite?.height??16;
+  const scale=Math.max(1,Math.min(requestedScale,Math.floor(size/Math.max(baseWidth,baseHeight))||1));
+  const width=baseWidth*scale;const height=baseHeight*scale;
+  spriteAtlas.draw(context,id,(size-width)/2,(size-height)/2,{scale,width,height});
+  return canvas;
 }
 
 function renderInventory(){
@@ -271,7 +298,7 @@ function renderInventory(){
     const item=game.player.equipment[slot.id];const cell=document.createElement("div");cell.className="equipment-slot";
     const label=document.createElement("span");label.className="slot-label";label.textContent=slot.label;
     const name=document.createElement("span");name.className=`slot-item ${item?`rarity-${item.rarity}`:"empty"}`;name.textContent=item?item.name:"Empty";name.title=item?itemTooltip(item):"Empty slot";
-    cell.append(label,name);
+    cell.append(label);if(item)cell.append(itemSpriteCanvas(item,32,2));cell.append(name);
     if(item){const actions=document.createElement("div");actions.className="slot-actions";const remove=document.createElement("button");remove.type="button";remove.className="slot-remove";remove.textContent="PACK";remove.disabled=game.player.inventory.length>=INVENTORY_CAPACITY;remove.addEventListener("click",()=>runAction({type:"unequip",slot:slot.id}));const drop=document.createElement("button");drop.type="button";drop.className="slot-drop";drop.textContent="DROP";drop.addEventListener("click",()=>runAction({type:"drop_equipment",slot:slot.id}));actions.append(remove,drop);cell.append(actions);}
     slotGrid.append(cell);
   }
@@ -288,7 +315,7 @@ function renderInventory(){
     const item=game.player.inventory[index];const cell=document.createElement("button");cell.type="button";cell.className=`inventory-cell ${item?`rarity-border-${item.rarity}`:"empty"} ${item?.id===selectedInventoryId?"selected":""}`;
     cell.disabled=!item;cell.title=item?itemTooltip(item):`Empty slot ${index+1}`;
     const indexLabel=document.createElement("span");indexLabel.className="cell-index";indexLabel.textContent=String(index+1).padStart(2,"0");cell.append(indexLabel);
-    if(item){const name=document.createElement("span");name.className=`cell-name rarity-${item.rarity}`;name.textContent=item.name;cell.append(name);if(item.quantity>1){const qty=document.createElement("b");qty.className="stack-count";qty.textContent=`×${item.quantity}`;cell.append(qty);}
+    if(item){cell.append(itemSpriteCanvas(item,32,2));const name=document.createElement("span");name.className=`cell-name rarity-${item.rarity}`;name.textContent=item.name;cell.append(name);if(item.quantity>1){const qty=document.createElement("b");qty.className="stack-count";qty.textContent=`×${item.quantity}`;cell.append(qty);}
       cell.addEventListener("click",()=>{selectedInventoryId=item.id;inventoryNotice="";renderModal();});}
     else{const empty=document.createElement("span");empty.className="cell-empty";empty.textContent="—";cell.append(empty);}
     grid.append(cell);
@@ -299,9 +326,10 @@ function renderInventory(){
   selectedInventoryId=selected?.id??null;
   if(selected){
     const detail=document.createElement("section");detail.className="item-detail";
-    const title=document.createElement("h3");title.className=`item-name rarity-${selected.rarity}`;title.textContent=selected.name;detail.append(title);
+    const heading=document.createElement("div");heading.className="item-detail-heading";heading.append(itemSpriteCanvas(selected,72,4));
+    const title=document.createElement("h3");title.className=`item-name rarity-${selected.rarity}`;title.textContent=selected.name;heading.append(title);detail.append(heading);
     const statsList=document.createElement("div");statsList.className="item-attributes";statsList.textContent=itemStatLabels(selected).join(" · ")||`Stack ×${selected.quantity??1}`;detail.append(statsList);
-    if(["weapon","armor","helmet","boots","ring","amulet"].includes(selected.slot)){
+    if(["weapon","shield","armor","gloves","helmet","boots","ring","amulet"].includes(selected.slot)){
       let selectedSlot=selected.slot;
       if(selected.slot==="ring"){
         const select=document.createElement("select");select.className="ring-slot-select";
@@ -334,10 +362,11 @@ function renderGameOverlay() {
     for (const offer of overlay.stock) {
       if (offer.sold) continue;
       const row = document.createElement("div"); row.className = "shop-offer";
-      const label = document.createElement("span"); label.className = `item-name ${offer.item.rarity}`; label.textContent = `${offer.item.name} · ${itemShortStats(offer.item)}`;
+      const goods=document.createElement("div");goods.className="shop-offer-item";goods.append(itemSpriteCanvas(offer.item,34,2));
+      const label = document.createElement("span"); label.className = `item-name ${offer.item.rarity}`; label.textContent = `${offer.item.name} · ${itemShortStats(offer.item)}`;goods.append(label);
       const button = document.createElement("button"); button.textContent = `BUY ◈ ${offer.cost}`; button.disabled = game.player.gold < offer.cost || game.player.inventory.length >= INVENTORY_CAPACITY;
       button.addEventListener("click", () => runAction({ type: "buy", itemId: offer.item.id }));
-      row.append(label, button); content.append(row);
+      row.append(goods, button); content.append(row);
     }
   } else if (overlay.type === "event") {
     ui.modalTitle.textContent = overlay.event.title;
@@ -369,8 +398,10 @@ function runAction(intent) {
   const oldDrops=new Map(game.drops.map((drop)=>[drop.entityId??drop.id,{collected:drop.collected,x:drop.x,y:drop.y}]));
   const oldEnemies=new Map(game.enemies.map((enemy)=>[enemy.id,{hp:enemy.hp,alive:enemy.alive,x:enemy.x,y:enemy.y,type:enemy.type}]));
   const candidate=intent.type==="equip"?game.player.inventory.find((item)=>item.id===intent.itemId):null;
+  const usedItem=intent.type==="use"?game.player.inventory.find((item)=>item.id===intent.itemId):null;
   const result=performAction(game,intent);
   if(game.player.x!==oldX||game.player.y!==oldY)walkingUntil=performance.now()+220;
+  if(intent.type==="attack"||game.enemies.some((enemy)=>{const before=oldEnemies.get(enemy.id);return before&&enemy.hp<before.hp;}))attackStarted=performance.now();
   if(!result.ok&&result.reason){inventoryNotice=result.reason;setLocation(result.reason);}else inventoryNotice="";
   if(result.ok){
     if(intent.type==="move")playSound("step");
@@ -394,10 +425,11 @@ function runAction(intent) {
     const before=oldEnemies.get(enemy.id);if(!before)continue;
     const point=tileScreenPoint(before.x,before.y);if(!point)continue;
     const dealt=before.hp-enemy.hp;
-    if(dealt>0){const color=before.type==="mourning-wraith"?"#88d6e4":before.type==="vault-warden"?"#ffc45f":"#e07862";emitAtTile("combatHit",before.x,before.y,{color});showDamage(`−${dealt}`,color,point);}
-    if(before.alive&&!enemy.alive)emitAtTile("enemyDeath",before.x,before.y,{color:before.type==="vault-warden"?"#ffc45f":before.type==="mourning-wraith"?"#88d6e4":"#d88163"});
+    if(dealt>0){const color=enemy.family==="ghost"?"#88d6e4":enemy.isBoss?"#ffc45f":"#e07862";emitAtTile("combatHit",before.x,before.y,{color});emitSpriteEffectAtTile("slash",before.x,before.y,game.player.facing==="left"?-.55:.55);emitSpriteEffectAtTile(enemy.family==="ghost"?"magic":"blood",before.x,before.y);showDamage(`−${dealt}`,color,point);}
+    if(before.alive&&!enemy.alive){emitAtTile("enemyDeath",before.x,before.y,{color:enemy.isBoss?"#ffc45f":enemy.family==="ghost"?"#88d6e4":"#d88163"});emitSpriteEffectAtTile(enemy.isBoss?"explosion":enemy.family==="ghost"?"magic":"blood",before.x,before.y);}
   }
-  if(playerDamage>0)emitAtTile("combatHit",game.player.x,game.player.y,{color:"#ef806c",count:12});
+  if(playerDamage>0){emitAtTile("combatHit",game.player.x,game.player.y,{color:"#ef806c",count:12});emitSpriteEffectAtTile("blood",game.player.x,game.player.y);}
+  if(result.ok&&intent.type==="use"&&usedItem){emitSpriteEffectAtTile(usedItem.heal>0?"heal":"magic",game.player.x,game.player.y);}
   if(result.ok&&intent.type==="equip"&&candidate){
     const point=tileScreenPoint(game.player.x,game.player.y);
     if(point)particles.emit("equipAura",point.x,point.y,{color:candidate.color??getRarity(candidate.rarity).color,worldBound:true,tileX:game.player.x,tileY:game.player.y});
@@ -504,7 +536,7 @@ $("#character-back").addEventListener("click",()=>showScreen("menu"));
 $("#character-random").addEventListener("click",()=>{
   const generated=randomCharacter(new Rng(`appearance:${randomWorldSeed()}`));
   ui.characterName.value=generated.name;ui.classSelect.value=generated.classId;
-  for(const key of ["skin","hairStyle","hairColor","faceStyle","outfitColor"])fillAppearanceSelect(key,APPEARANCE_OPTIONS[key],generated.appearance[key]);
+  for(const key of ["bodyVariant","skin","hairStyle","hairColor","faceStyle","outfitColor"])fillAppearanceSelect(key,APPEARANCE_OPTIONS[key],generated.appearance[key]);
   renderCharacterDraft();
 });
 ui.characterForm.addEventListener("input",renderCharacterDraft);
@@ -555,8 +587,9 @@ function animateVisuals(timestamp){
   if(!active||!lastLayout){particleContext.clearRect(0,0,ui.particleCanvas.width,ui.particleCanvas.height);return;}
   resizeCanvas(ui.particleCanvas);particleContext.clearRect(0,0,ui.particleCanvas.width,ui.particleCanvas.height);
   drawBiomeOverlay(particleContext,game,lastLayout,timestamp,visualOptions.reducedEffects);
+  monsterRenderer.draw(particleContext,game,lastLayout,timestamp,{reducedEffects:visualOptions.reducedEffects});
   const tileSize=lastLayout.tileSize;
-  characterRenderer.draw(particleContext,lastLayout.playerX,lastLayout.playerY,tileSize*1.35,game.player.character,game.player.equipment,{direction:game.player.facing,moving:timestamp<walkingUntil,time:timestamp,flash:timestamp<flashUntil ? 0.6 : 0});
+  characterRenderer.draw(particleContext,lastLayout.playerX,lastLayout.playerY,tileSize*1.35,game.player.character,game.player.equipment,{direction:game.player.facing,moving:timestamp<walkingUntil,time:timestamp,flash:timestamp<flashUntil ? 0.6 : 0,swing:Math.max(0,1-(timestamp-attackStarted)/260)});
   ambienceTimer+=dt;dropTimer+=dt;stairTimer+=dt;
   if(ambienceTimer>=(visualOptions.reducedEffects?1.1:.34)){
     ambienceTimer=0;
@@ -565,6 +598,9 @@ function animateVisuals(timestamp){
       const prop=visualRng.pick(visibleProps);
       const preset=prop.animation==="water"?"waterBubble":prop.animation==="lava"||game.map.biomeId==="lava"?"lavaEmber":prop.animation==="energy"?"foundrySpark":prop.animation==="flame"?"torchSpark":"dustMote";
       emitAtTile(preset,prop.x,prop.y,{color:prop.lightColor??prop.color,count:visualOptions.reducedEffects?1:2});
+      if(prop.animation==="water")emitSpriteEffectAtTile("water",prop.x,prop.y);
+      else if(prop.animation==="lava")emitSpriteEffectAtTile("fire",prop.x,prop.y);
+      else if(prop.animation==="energy")emitSpriteEffectAtTile("magic",prop.x,prop.y);
     }else{
       const candidates=[];
       for(let y=0;y<game.map.height;y+=1)for(let x=0;x<game.map.width;x+=1){const index=y*game.map.width+x;if(game.visible[index]&&game.map.tiles[index]!==TILE.WALL)candidates.push({x,y});}
@@ -579,6 +615,7 @@ function animateVisuals(timestamp){
     stairTimer=0;const stairs=game.map.stairs;if(game.visible[stairs.y*game.map.width+stairs.x])emitAtTile("stairSpiral",stairs.x,stairs.y,{color:"#dba35d",count:visualOptions.reducedEffects?1:2});
   }
   particles.draw(particleContext,{isVisible:(x,y)=>Number.isInteger(x)&&Number.isInteger(y)&&game.visible[y*game.map.width+x]===1});
+  spriteEffects.draw(particleContext,game,lastLayout,timestamp,visualOptions.reducedEffects);
 }
 requestAnimationFrame(animateVisuals);
 window.addEventListener("resize",()=>{if(game&&ui.game.classList.contains("is-hidden")===false)renderGame();if(!ui.character.classList.contains("is-hidden"))renderCharacterDraft();},{passive:true});
@@ -588,3 +625,4 @@ ui.reducedEffects.addEventListener("change",()=>{
   saveOptions(visualOptions);
 });
 populateMutators();
+spriteAtlas.load().then(()=>{characterRenderer.clear();if(game)renderGame();else if(!ui.character.classList.contains("is-hidden"))renderCharacterDraft();});

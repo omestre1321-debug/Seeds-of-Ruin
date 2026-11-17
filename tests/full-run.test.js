@@ -4,12 +4,26 @@ import { createGame, performAction } from "../js/core/game.js";
 import { ENEMY_TYPES } from "../js/core/enemies.js";
 import { findPath } from "../js/core/pathfinding.js";
 
+function equipmentScore(item={}){
+  return Number(item.attack??0)*3+Number(item.defense??0)*2+Number(item.maxHp??0)*.08+Number(item.crit??0)*20+Number(item.speed??0)*5+Number(item.vision??0)*.5+Number(item.reach??0)*2+Number(item.lifeSteal??0)*10+Number(item.thorns??0)*.5;
+}
+
+function equipImprovement(state){
+  const slots={weapon:["weapon"],shield:["shield"],armor:["armor"],gloves:["gloves"],helmet:["helmet"],boots:["boots"],ring:["ring1","ring2"],amulet:["amulet"]};
+  for(const item of state.player.inventory){
+    const choices=slots[item.slot];if(!choices)continue;
+    const slot=choices.find((id)=>!state.player.equipment[id])??choices.find((id)=>equipmentScore(item)>equipmentScore(state.player.equipment[id]));
+    if(slot){const result=performAction(state,{type:"equip",itemId:item.id,slot});if(result.ok)return true;}
+  }
+  return false;
+}
+
 function playGreedyRun(seed) {
   const state=createGame(seed,{}, {maxFloors:4});
   let actions=0;
   while(state.status==="playing"&&actions<700){
     actions+=1;
-    const tonic=state.player.inventory.find((item)=>item.slot==="consumable");
+    const tonic=state.player.inventory.find((item)=>item.slot==="consumable"&&item.heal>0);
     if(tonic&&state.player.hp<=state.player.maxHp*.65){performAction(state,{type:"use",itemId:tonic.id});continue;}
     if(state.overlay?.type==="event"){
       const type=state.overlay.event.type;
@@ -20,13 +34,13 @@ function playGreedyRun(seed) {
     }
     if(state.overlay?.type==="shop"){
       const offers=state.overlay.stock.filter((offer)=>!offer.sold&&state.player.gold>=offer.cost&&state.player.inventory.length<20);
-      const offer=offers.find((entry)=>entry.item.slot==="consumable")
+      const offer=offers.find((entry)=>entry.item.slot==="consumable"&&entry.item.heal>0)
         ||offers.find((entry)=>entry.item.slot==="weapon"&&entry.item.attack>state.player.attack-4)
-        ||offers.find((entry)=>entry.item.slot==="armor")
-        ||offers.find((entry)=>["helmet","boots","ring","amulet"].includes(entry.item.slot));
+        ||offers.find((entry)=>["shield","armor","gloves","helmet","boots","ring","amulet"].includes(entry.item.slot));
       if(offer){performAction(state,{type:"buy",itemId:offer.item.id});continue;}
       performAction(state,{type:"close"});continue;
     }
+    if(equipImprovement(state))continue;
     const boss=state.enemies.find((enemy)=>enemy.alive&&enemy.type===ENEMY_TYPES.BOSS);
     let target=boss;
     if(!target){

@@ -1,0 +1,32 @@
+{
+  "sprites": {
+    "items-r09-c09-p069": {
+      "name": "gray-crown",
+      "category": "helmet",
+      "width": 13
+    },
+    "effects-0095": {
+      "name": "emote-zzz",
+      "category": "effect_emote"
+    },
+    "effects-0093": { "name":"emote-sleep-short", "category":"effect_emote" },
+    "effects-0096": { "name":"emote-alert", "category":"effect_emote" },
+    "effects-0097": { "name":"emote-food", "category":"effect_emote" },
+    "effects-0098": { "name":"emote-alert-alt", "category":"effect_emote" },
+    "effects-0115": { "name":"emote-lost-short", "category":"effect_emote" },
+    "effects-0118": { "name":"emote-ellipsis", "category":"effect_emote" }
+  },
+  "removeIds": [],
+  "add": [
+    {
+      "id": "items-glove-c10-r09",
+      "name": "steel-gauntlet",
+      "sheet": "items",
+      "x": 160,
+      "y": 144,
+      "width": 16,
+      "height": 16,
+      "category": "gloves"
+    }
+  ]
+}

@@ -11,19 +11,19 @@ test("every class supplies its defined starting attributes, weapon and passive",
   for(const definition of Object.values(CLASSES)){
     const character=createCharacter({name:"Test Delver",classId:definition.id});
     assert.equal(character.className,definition.name);assert.deepEqual(character.stats,definition.stats);
-    assert.equal(character.startingWeapon.visualId,definition.startingWeapon.visualId);assert.equal(character.passiveId,definition.passiveId);
+    assert.equal(character.startingWeapon.spriteCategory,definition.startingWeapon.spriteCategory);assert.equal(character.passiveId,definition.passiveId);
     const game=createGame("class-seed",{}, {character});
     assert.equal(game.player.classId,definition.id);assert.equal(game.player.baseAttack,definition.stats.attack);
     assert.equal(game.player.baseDefense,definition.stats.defense);assert.equal(game.player.passiveId,definition.passiveId);
-    assert.equal(game.player.equipment.weapon.visualId,definition.startingWeapon.visualId);
+    assert.equal(game.player.equipment.weapon.spriteCategory,definition.startingWeapon.spriteCategory);
   }
 });
 
 test("appearance validation accepts every data-defined combination and falls back safely",()=>{
-  const {skin:skins,hairStyle:hairstyles,hairColor:hairColors,faceStyle:faces,outfitColor:outfits}=APPEARANCE_OPTIONS;
-  for(const skin of skins)for(const hairstyle of hairstyles)for(const hair of hairColors)for(const face of faces)for(const outfit of outfits){
-    const character=createCharacter({name:"  Ash Runner  ",classId:"wayfinder",appearance:{skin:skin.id,hairStyle:hairstyle.id,hairColor:hair.id,faceStyle:face.id,outfitColor:outfit.id}});
-    assert.equal(character.name,"Ash Runner");assert.deepEqual(character.appearance,{skin:skin.id,hairStyle:hairstyle.id,hairColor:hair.id,faceStyle:face.id,outfitColor:outfit.id});
+  const {bodyVariant:bodies,skin:skins,hairStyle:hairstyles,hairColor:hairColors,faceStyle:faces,outfitColor:outfits}=APPEARANCE_OPTIONS;
+  for(const body of bodies)for(const skin of skins)for(const hairstyle of hairstyles)for(const hair of hairColors)for(const face of faces)for(const outfit of outfits){
+    const character=createCharacter({name:"  Ash Runner  ",classId:"wayfinder",appearance:{bodyVariant:body.id,skin:skin.id,hairStyle:hairstyle.id,hairColor:hair.id,faceStyle:face.id,outfitColor:outfit.id}});
+    assert.equal(character.name,"Ash Runner");assert.deepEqual(character.appearance,{bodyVariant:body.id,skin:skin.id,hairStyle:hairstyle.id,hairColor:hair.id,faceStyle:face.id,outfitColor:outfit.id});
     assert.equal(character.startingWeapon.slot,"weapon");
   }
   const fallback=sanitizeCharacter({name:"!!!",classId:"missing",appearance:{skin:"bad"}});

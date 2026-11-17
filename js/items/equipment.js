@@ -2,7 +2,9 @@ import { addToInventory, inventoryCount, removeFromInventory, INVENTORY_CAPACITY
 
 export const EQUIPMENT_SLOTS = Object.freeze([
   { id: "weapon", label: "Weapon", accepts: "weapon" },
+  { id: "shield", label: "Shield", accepts: "shield" },
   { id: "armor", label: "Armor", accepts: "armor" },
+  { id: "gloves", label: "Gloves", accepts: "gloves" },
   { id: "helmet", label: "Helmet", accepts: "helmet" },
   { id: "boots", label: "Boots", accepts: "boots" },
   { id: "ring1", label: "Ring I", accepts: "ring" },
