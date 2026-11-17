@@ -36,6 +36,6 @@ export function randomCharacter(rng) {
   return createCharacter({
     name,
     classId:rng.pick(classes),
-    appearance:{bodyVariant:choose("bodyVariant"),skin:choose("skin"),hairStyle:choose("hairStyle"),hairColor:choose("hairColor"),faceStyle:choose("faceStyle"),outfitColor:choose("outfitColor")},
+    appearance:{skin:choose("skin"),hairStyle:choose("hairStyle"),hairColor:choose("hairColor"),faceStyle:choose("faceStyle"),outfitColor:choose("outfitColor")},
   });
 }

@@ -36,11 +36,11 @@ Classes and options live in `js/data/` rather than scattered UI code:
 - **Vanguard:** stronger guard and a once-per-floor hit reduction.
 - **Wayfinder:** longer sight and reach.
 - **Ember Adept:** life-steal passive.
-- Appearance options include five body variants, four skin tones, five hair styles/colors, four face treatments and five outfit colors. The default look is sanitized and saved in localStorage for the next run.
+- Appearance options include four skin tones, five hair styles/colors, four face treatments and five outfit colors. The player keeps the original procedural body; the character sheet is used for mobs, not the player silhouette.
 
 Loot rarities are Common, Uncommon, Rare, Epic and Legendary, with increasing attribute counts and distinct data colors/glows. Gear stats include attack, defense, max HP, crit, speed/evasion, reach, vision, life-steal and thorns. Food heals; scrolls grant XP; tonics, food, scrolls and materials stack. Weapon, shield, armor, helmet, glove, boot, ring and amulet loot each resolves through an atlas category.
 
-`js/ui/characterRenderer.js` composites a 32×40 body sprite and gear layers. `js/data/sprite-character-visuals.js` defines five selectable body IDs, anchor points and skin/hair/clothing/armor/hand/foot masks. Palette swaps use material and rarity; helmets cover the hair, boots and gloves recolor the feet/hands, shields sit in the off hand and equipped weapons swing procedurally. Facing mirrors all layers. Offscreen composites are cached by appearance/equipment and the same renderer serves creation preview, in-run panel and map.
+`js/ui/characterRenderer.js` keeps the original 32×40 procedural body, clothing, face and hairstyle, and layers sprites only for equipped gear. `js/data/sprite-character-visuals.js` defines hand/head/foot anchors and material masks. Armor palettes respond to material and rarity; a helmet covers the procedural hair, boots/gloves tint feet/hands, the shield sits in the off hand, and the weapon sprite swings procedurally. Facing mirrors all layers. Drawing clamps the composite and weapon to the viewport so the player is not cut at canvas edges. Offscreen composites are cached by appearance/equipment and reused by preview, pack and run.
 
 ## Drops and particles
 
@@ -103,7 +103,7 @@ PLANO.md                   architecture and staged checklist
 
 ## Verification and limitations
 
-`node --test` currently passes **80 tests**, including the 500-seed/four-floor decorated-map checks, atlas bounds/non-overlap/transparency/rebuilds, every loot category and monster sprite ID, missing-image placeholder behavior, body/gear cache layers, FOV-clipped monster/effect rendering, inventory/equipment, particle pooling and deterministic full runs. `node --check` has been run on every JavaScript module.
+`node --test` currently passes **82 tests**, including the 500-seed/four-floor decorated-map checks, atlas bounds/non-overlap/transparency/rebuilds, every loot category and monster sprite ID, missing-image placeholder behavior, body/gear cache layers, FOV-clipped monster/effect rendering, inventory/equipment, particle pooling and deterministic full runs. `node --check` has been run on every JavaScript module.
 
 This environment has no browser executable, so no visual browser/device playthrough, console check, mobile check or FPS claim is made. Static files and `tools/sprite-browser.html` have been served successfully at `http://localhost:8000`. Before considering the atlas final, open that browser and review the 221 flagged rectangles: especially joined character cells, effects crops, category guesses and the manually cut gauntlet; adjust names/categories/boxes, download the override JSON into `assets/atlas-overrides.json`, then rebuild. Also verify the full game and mobile layout in a real browser. See `PLANO.md` for remaining QA.
 

@@ -20,10 +20,10 @@ test("every class supplies its defined starting attributes, weapon and passive",
 });
 
 test("appearance validation accepts every data-defined combination and falls back safely",()=>{
-  const {bodyVariant:bodies,skin:skins,hairStyle:hairstyles,hairColor:hairColors,faceStyle:faces,outfitColor:outfits}=APPEARANCE_OPTIONS;
-  for(const body of bodies)for(const skin of skins)for(const hairstyle of hairstyles)for(const hair of hairColors)for(const face of faces)for(const outfit of outfits){
-    const character=createCharacter({name:"  Ash Runner  ",classId:"wayfinder",appearance:{bodyVariant:body.id,skin:skin.id,hairStyle:hairstyle.id,hairColor:hair.id,faceStyle:face.id,outfitColor:outfit.id}});
-    assert.equal(character.name,"Ash Runner");assert.deepEqual(character.appearance,{bodyVariant:body.id,skin:skin.id,hairStyle:hairstyle.id,hairColor:hair.id,faceStyle:face.id,outfitColor:outfit.id});
+  const {skin:skins,hairStyle:hairstyles,hairColor:hairColors,faceStyle:faces,outfitColor:outfits}=APPEARANCE_OPTIONS;
+  for(const skin of skins)for(const hairstyle of hairstyles)for(const hair of hairColors)for(const face of faces)for(const outfit of outfits){
+    const character=createCharacter({name:"  Ash Runner  ",classId:"wayfinder",appearance:{skin:skin.id,hairStyle:hairstyle.id,hairColor:hair.id,faceStyle:face.id,outfitColor:outfit.id}});
+    assert.equal(character.name,"Ash Runner");assert.deepEqual(character.appearance,{skin:skin.id,hairStyle:hairstyle.id,hairColor:hair.id,faceStyle:face.id,outfitColor:outfit.id});
     assert.equal(character.startingWeapon.slot,"weapon");
   }
   const fallback=sanitizeCharacter({name:"!!!",classId:"missing",appearance:{skin:"bad"}});

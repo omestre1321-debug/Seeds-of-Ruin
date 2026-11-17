@@ -105,7 +105,7 @@ function populateCharacterChoices(){
 }
 function readCharacterDraft(){
   return createCharacter({name:ui.characterName.value,classId:ui.classSelect.value,appearance:{
-    bodyVariant:$("#appearance-bodyVariant").value,skin:$("#appearance-skin").value,hairStyle:$("#appearance-hairStyle").value,hairColor:$("#appearance-hairColor").value,
+    skin:$("#appearance-skin").value,hairStyle:$("#appearance-hairStyle").value,hairColor:$("#appearance-hairColor").value,
     faceStyle:$("#appearance-faceStyle").value,outfitColor:$("#appearance-outfitColor").value,
   }});
 }
@@ -130,7 +130,7 @@ function openCharacterCreation(seedValue){
   const saved=createCharacter(profile.defaultCharacter);
   const suggested=profile.runs===0&&saved.name==="Delver"?randomCharacter(new Rng(`suggested-look:${randomWorldSeed()}`)):saved;
   ui.characterName.value=suggested.name;ui.classSelect.value=suggested.classId;
-  for(const key of ["bodyVariant","skin","hairStyle","hairColor","faceStyle","outfitColor"])fillAppearanceSelect(key,APPEARANCE_OPTIONS[key],suggested.appearance[key]);
+  for(const key of ["skin","hairStyle","hairColor","faceStyle","outfitColor"])fillAppearanceSelect(key,APPEARANCE_OPTIONS[key],suggested.appearance[key]);
   showScreen("character");renderCharacterDraft();
 }
 
@@ -536,7 +536,7 @@ $("#character-back").addEventListener("click",()=>showScreen("menu"));
 $("#character-random").addEventListener("click",()=>{
   const generated=randomCharacter(new Rng(`appearance:${randomWorldSeed()}`));
   ui.characterName.value=generated.name;ui.classSelect.value=generated.classId;
-  for(const key of ["bodyVariant","skin","hairStyle","hairColor","faceStyle","outfitColor"])fillAppearanceSelect(key,APPEARANCE_OPTIONS[key],generated.appearance[key]);
+  for(const key of ["skin","hairStyle","hairColor","faceStyle","outfitColor"])fillAppearanceSelect(key,APPEARANCE_OPTIONS[key],generated.appearance[key]);
   renderCharacterDraft();
 });
 ui.characterForm.addEventListener("input",renderCharacterDraft);

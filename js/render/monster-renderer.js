@@ -19,17 +19,20 @@ export function drawMonsterSprite(context,enemy,point,tileSize,spriteAtlas,{time
   const width=Math.max(1,Math.round(rawWidth*(1+squash*.035)));
   const height=Math.max(1,Math.round(rawHeight*(1-squash*.035)));
   const fallen=death>0;
-  const x=Math.round(point.x-width/2);const y=Math.round(point.y-height/2+(reducedEffects?0:Math.sin(time*.006+enemy.x)*1.2));
+  let x=Math.round(point.x-width/2);let y=Math.round(point.y-height/2+(reducedEffects?0:Math.sin(time*.006+enemy.x)*1.2));
+  if(context.canvas&&context.canvas.width>=width)x=Math.max(0,Math.min(context.canvas.width-width,x));
+  if(context.canvas&&context.canvas.height>=height)y=Math.max(0,Math.min(context.canvas.height-height,y));
+  const drawPoint={x:x+width/2,y:y+height/2};
   context.save();context.imageSmoothingEnabled=false;
   if(enemy.elite||enemy.isBoss){const hue=hexToHue(enemy.eliteTint);context.filter=`saturate(${enemy.isBoss?1.8:1.5}) hue-rotate(${Math.round(hue)}deg)`;}
-  if(fallen){context.globalAlpha=Math.max(0,1-death);context.translate(point.x,point.y);context.rotate(-death*.9);context.translate(-point.x,-point.y);}
-  if(enemy.elite&& !reducedEffects){context.save();context.globalCompositeOperation="lighter";context.globalAlpha=.14;context.fillStyle=enemy.eliteTint;context.beginPath();context.ellipse(point.x,point.y,width*.47,height*.48,0,0,Math.PI*2);context.fill();context.restore();}
-  if(enemy.isBoss){context.save();context.globalCompositeOperation="lighter";context.globalAlpha=reducedEffects ? .13 : .2+(pulse+1)*.05;context.fillStyle=enemy.eliteTint;context.beginPath();context.ellipse(point.x,point.y,width*.52,height*.52,0,0,Math.PI*2);context.fill();context.restore();}
+  if(fallen){context.globalAlpha=Math.max(0,1-death);context.translate(drawPoint.x,drawPoint.y);context.rotate(-death*.9);context.translate(-drawPoint.x,-drawPoint.y);}
+  if(enemy.elite&& !reducedEffects){context.save();context.globalCompositeOperation="lighter";context.globalAlpha=.14;context.fillStyle=enemy.eliteTint;context.beginPath();context.ellipse(drawPoint.x,drawPoint.y,width*.47,height*.48,0,0,Math.PI*2);context.fill();context.restore();}
+  if(enemy.isBoss){context.save();context.globalCompositeOperation="lighter";context.globalAlpha=reducedEffects ? .13 : .2+(pulse+1)*.05;context.fillStyle=enemy.eliteTint;context.beginPath();context.ellipse(drawPoint.x,drawPoint.y,width*.52,height*.52,0,0,Math.PI*2);context.fill();context.restore();}
   spriteAtlas?.draw(context,enemy.spriteId,x,y,{scale:baseScale,flipX:enemy.facing==="left",width,height,alpha:fallen?Math.max(0,1-death):1});
   if(flash>0&&!reducedEffects){context.save();context.filter="brightness(3) grayscale(1)";spriteAtlas?.draw(context,enemy.spriteId,x,y,{scale:baseScale,flipX:enemy.facing==="left",width,height,alpha:Math.min(.85,flash)});context.restore();}
   context.restore();
   if(!fallen&&tileSize>=8){
-    const barWidth=Math.max(8,Math.min(tileSize*.9,width*.74));const barHeight=Math.max(2,Math.round(tileSize*.1));const bx=Math.round(point.x-barWidth/2);const by=Math.round(point.y+height*.42+2);
+    const barWidth=Math.max(8,Math.min(tileSize*.9,width*.74));const barHeight=Math.max(2,Math.round(tileSize*.1));const bx=Math.round(drawPoint.x-barWidth/2);const by=Math.round(drawPoint.y+height*.42+2);
     context.fillStyle="#101315";context.fillRect(bx,by,barWidth,barHeight);
     context.fillStyle=enemy.elite?enemy.eliteTint:"#e27667";context.fillRect(bx,by,barWidth*Math.max(0,enemy.hp/enemy.maxHp),barHeight);
   }
@@ -39,10 +42,11 @@ export function drawMonsterSprite(context,enemy,point,tileSize,spriteAtlas,{time
 function drawEmoteSprite(context,spriteAtlas,name,x,y,size){
   const definition=effectDefinition(name);if(!definition)return;
   const sprite=spriteAtlas.getSprite(definition.spriteId);const width=sprite?.width??28;const height=sprite?.height??23;
-  const left=Math.round(x-width/2);const top=Math.round(y-size*.72-height/2);
+  let left=Math.round(x-width/2);let top=Math.round(y-size*.72-height/2);
+  if(context.canvas){left=Math.max(0,Math.min(context.canvas.width-width,left));top=Math.max(0,Math.min(context.canvas.height-height,top));}
   spriteAtlas.draw(context,definition.spriteId,left,top,{scale:1});
   if(name==="emoteLost"){
-    context.save();context.fillStyle="#2b3940";context.font="bold 10px ui-monospace,monospace";context.textAlign="center";context.textBaseline="middle";context.fillText("?",x,top+height*.42);context.restore();
+    context.save();context.fillStyle="#2b3940";context.font="bold 10px ui-monospace,monospace";context.textAlign="center";context.textBaseline="middle";context.fillText("?",left+width*.5,top+height*.42);context.restore();
   }
 }
 

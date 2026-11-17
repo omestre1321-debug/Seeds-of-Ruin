@@ -4,7 +4,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyOverrides, buildSpriteAtlas, decodePng, validateAtlas } from "../tools/build-sprite-atlas.mjs";
-import { PLAYER_BODY_VARIANTS } from "../js/data/sprite-character-visuals.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const atlasPath = path.join(root, "assets/atlas.json");
@@ -17,7 +16,6 @@ test("atlas includes valid, non-overlapping, categorized sprite boxes in all she
   assert.equal(validateAtlas(atlas.sprites, atlas.sheets), true);
   assert.deepEqual(Object.keys(atlas.sheets), ["items","items-small","effects","characters"]);
   const ids = new Set(atlas.sprites.map((sprite) => sprite.id));
-  for(const body of PLAYER_BODY_VARIANTS)assert.ok(ids.has(body.spriteId),`body variant ${body.id} must be a valid atlas sprite`);
   for (const category of requiredItemCategories) assert.ok(atlas.categories[category]?.length, `missing ${category}`);
   assert.ok(Object.hasOwn(atlas.categories,"gloves"),"gloves category remains available for a reviewed manual crop");
   assert.ok(Object.keys(atlas.categories).some((category) => category.startsWith("monster_")));

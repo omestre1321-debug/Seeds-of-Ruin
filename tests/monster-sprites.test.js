@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import { MONSTERS, MONSTERS_BY_BIOME } from "../js/data/monsters.js";
 import { createEnemy, ENEMY_TYPES } from "../js/core/enemies.js";
 import { generateFloor } from "../js/core/map/floor.js";
-import { MonsterRenderer } from "../js/render/monster-renderer.js";
+import { MonsterRenderer, drawMonsterSprite } from "../js/render/monster-renderer.js";
 
 const atlas=JSON.parse(await fs.readFile(new URL("../assets/atlas.json",import.meta.url),"utf8"));
 
@@ -38,6 +38,16 @@ test("same seed repeats monster types, sprites, elite variants and positions",()
   }
   const types=new Set();for(let seed=0;seed<40;seed++)for(let floor=1;floor<=4;floor++)for(const enemy of generateFloor(`MONSTER-VARIETY-${seed}`,floor,4).enemies)types.add(enemy.type);
   assert.ok(types.size>=8);
+});
+
+test("large monsters clamp their sprite crop inside a narrow canvas",()=>{
+  const definition=MONSTERS[ENEMY_TYPES.BOSS];const enemy=createEnemy(definition.id,"edge-boss",{x:0,y:0},4);
+  const sprite={id:enemy.spriteId,width:16,height:16};const calls=[];const atlas={getSprite:()=>sprite,draw(_context,id,x,y,options){calls.push({id,x,y,options});}};
+  const context=fakeContext();context.canvas={width:40,height:40};
+  drawMonsterSprite(context,enemy,{x:2,y:20},16,atlas,{time:0});
+  assert.equal(calls.length,1);assert.ok(calls[0].x>=0&&calls[0].y>=0);
+  assert.ok(calls[0].x+calls[0].options.width<=context.canvas.width);
+  assert.ok(calls[0].y+calls[0].options.height<=context.canvas.height);
 });
 
 test("monster rendering uses atlas sprites, FOV clips actors, and hit/death animation is transient",()=>{

@@ -1,7 +1,4 @@
-import { PLAYER_BODY_VARIANTS, DEFAULT_BODY_VARIANT } from "./sprite-character-visuals.js";
-
 export const APPEARANCE_OPTIONS=Object.freeze({
-  bodyVariant:PLAYER_BODY_VARIANTS.map((body)=>({id:body.id,label:body.label})),
   skin:[
     {id:"copper",label:"Copper",color:"#b56f4d",shadow:"#744432"},
     {id:"warm",label:"Warm sand",color:"#d69a70",shadow:"#9b6047"},
@@ -37,7 +34,7 @@ export const APPEARANCE_OPTIONS=Object.freeze({
   ],
 });
 
-export const DEFAULT_APPEARANCE=Object.freeze({bodyVariant:DEFAULT_BODY_VARIANT,skin:"warm",hairStyle:"swept",hairColor:"coal",faceStyle:"steady",outfitColor:"moss"});
+export const DEFAULT_APPEARANCE=Object.freeze({skin:"warm",hairStyle:"swept",hairColor:"coal",faceStyle:"steady",outfitColor:"moss"});
 
 function chooseOption(group,id) {
   return APPEARANCE_OPTIONS[group].find((option)=>option.id===id)??APPEARANCE_OPTIONS[group][0];
@@ -45,7 +42,6 @@ function chooseOption(group,id) {
 
 export function sanitizeAppearance(value={}) {
   return {
-    bodyVariant:chooseOption("bodyVariant",value.bodyVariant).id,
     skin:chooseOption("skin",value.skin).id,
     hairStyle:chooseOption("hairStyle",value.hairStyle).id,
     hairColor:chooseOption("hairColor",value.hairColor).id,
